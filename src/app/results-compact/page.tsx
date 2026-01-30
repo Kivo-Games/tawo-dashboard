@@ -65,23 +65,17 @@ export default function ResultsCompactPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-4 h-4" />
-                History
-              </span>
+            <button className="px-4 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+              <Clock className="w-4 h-4" />
+              History
             </button>
-            <button className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
-              <span className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4" />
-                Export GAEB
-              </span>
+            <button className="px-4 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+              <FileText className="w-4 h-4" />
+              Export GAEB
             </button>
-            <button className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
-              <span className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4" />
-                Export PDF
-              </span>
+            <button className="px-4 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5">
+              <FileText className="w-4 h-4" />
+              Export PDF
             </button>
             <button className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors">
               Save Changes
