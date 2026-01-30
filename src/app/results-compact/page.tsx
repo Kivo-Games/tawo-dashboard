@@ -1,60 +1,41 @@
 'use client';
 
-import { useState } from 'react';
-import { Clock, FileText, Plus, Pencil, Check, Trash2, AlertTriangle } from 'lucide-react';
-
-type ConfidenceFilter = 'all' | 'high' | 'medium' | 'low';
+import { Clock, FileText, Plus, Pencil, Check, Trash2 } from 'lucide-react';
 
 const tableData = [
   {
     id: '1',
     kfeCode: 'KFE 23.21.01',
     matchedService: 'Wandfliesen 20x25cm weiß, Dünnbett verlegt',
-    confidence: 94,
-    confidenceLevel: 'high' as const,
     qty: 125.5,
     laborHours: 31.4,
     laborCost: 1884.00,
     material: 4202.75,
     total: 6086.75,
-    hasWarning: false,
   },
   {
     id: '2',
     kfeCode: 'KFE 23.21.02',
     matchedService: 'Bodenfliesen 30x30cm Feinsteinzeug R10',
-    confidence: 78,
-    confidenceLevel: 'medium' as const,
     qty: 89.0,
     laborHours: 26.7,
     laborCost: 1602.00,
     material: 3942.70,
     total: 5544.70,
-    hasWarning: true,
   },
   {
     id: '3',
     kfeCode: null,
     matchedService: null,
-    confidence: 45,
-    confidenceLevel: 'low' as const,
     qty: 34.2,
     laborHours: 8.6,
     laborCost: 516.00,
     material: 130.38,
     total: 646.38,
-    hasWarning: true,
   },
 ];
 
 export default function ResultsCompactPage() {
-  const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>('all');
-
-  const filteredData = tableData.filter((row) => {
-    if (confidenceFilter === 'all') return true;
-    return row.confidenceLevel === confidenceFilter;
-  });
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('de-DE', {
       minimumFractionDigits: 2,
@@ -108,54 +89,8 @@ export default function ResultsCompactPage() {
           </div>
         </div>
 
-        {/* Filter Section */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">Filter by Confidence:</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setConfidenceFilter('all')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'all'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setConfidenceFilter('high')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'high'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                High (90%+)
-              </button>
-              <button
-                onClick={() => setConfidenceFilter('medium')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'medium'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                Medium (70-89%)
-              </button>
-              <button
-                onClick={() => setConfidenceFilter('low')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'low'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                Low (&lt;70%)
-              </button>
-            </div>
-          </div>
-
+        {/* Actions */}
+        <div className="flex items-center justify-end mb-4">
           <button className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors flex items-center gap-1.5">
             <Plus className="w-4 h-4" />
             Add Service
@@ -169,9 +104,6 @@ export default function ResultsCompactPage() {
               <tr className="bg-gray-50">
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
                   Matched Service
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-24">
-                  Confidence
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-16">
                   Qty
@@ -194,11 +126,11 @@ export default function ResultsCompactPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredData.map((row, index) => (
+              {tableData.map((row, index) => (
                 <tr
                   key={row.id}
                   className={`hover:bg-gray-50 transition-colors ${
-                    index !== filteredData.length - 1 ? 'border-b border-gray-200' : ''
+                    index !== tableData.length - 1 ? 'border-b border-gray-200' : ''
                   }`}
                 >
                   {/* Matched Service */}
@@ -219,35 +151,6 @@ export default function ResultsCompactPage() {
                           Assign Service
                         </button>
                       )}
-                    </div>
-                  </td>
-
-                  {/* Confidence */}
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <div
-                        className={`flex-1 h-1.5 rounded-full overflow-hidden ${
-                          row.confidenceLevel === 'high'
-                            ? 'bg-green-100'
-                            : row.confidenceLevel === 'medium'
-                            ? 'bg-amber-100'
-                            : 'bg-red-100'
-                        }`}
-                      >
-                        <div
-                          className={`h-full rounded-full ${
-                            row.confidenceLevel === 'high'
-                              ? 'bg-green-600'
-                              : row.confidenceLevel === 'medium'
-                              ? 'bg-amber-500'
-                              : 'bg-red-500'
-                          }`}
-                          style={{ width: `${row.confidence}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500 tabular-nums w-7 text-right">
-                        {row.confidence}%
-                      </span>
                     </div>
                   </td>
 
@@ -273,12 +176,7 @@ export default function ResultsCompactPage() {
 
                   {/* Total */}
                   <td className="px-3 py-2 text-sm text-gray-900 text-right tabular-nums font-medium">
-                    <div className="flex items-center justify-end gap-1">
-                      {row.hasWarning && (
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                      )}
-                      €{formatCurrency(row.total)}
-                    </div>
+                    €{formatCurrency(row.total)}
                   </td>
 
                   {/* Actions */}
@@ -304,8 +202,7 @@ export default function ResultsCompactPage() {
         {/* Summary Row */}
         <div className="mt-3 flex justify-end">
           <div className="text-xs text-gray-500">
-            Showing <span className="font-medium text-gray-700">{filteredData.length}</span> of{' '}
-            <span className="font-medium text-gray-700">{tableData.length}</span> items
+            Showing <span className="font-medium text-gray-700">{tableData.length}</span> items
           </div>
         </div>
       </div>

@@ -13,16 +13,12 @@ const steps = [
 
 const currentStep = 4;
 
-type ConfidenceFilter = 'all' | 'high' | 'medium' | 'low';
-
 const tableData = [
   {
     id: '1',
     selected: true,
     kfeCode: 'KFE 23.21.01',
     description: 'Wandfliesen 20x25cm weiß, Dünnbett verlegt inkl. Fugenmörtel',
-    confidence: 94,
-    confidenceLevel: 'high' as const,
     qty: 125.5,
     unit: 'm²',
     unitPrice: 48.50,
@@ -33,8 +29,6 @@ const tableData = [
     selected: true,
     kfeCode: 'KFE 23.21.02',
     description: 'Bodenfliesen 30x30cm Feinsteinzeug R10, Mittelbett inkl. Grundierung',
-    confidence: 78,
-    confidenceLevel: 'medium' as const,
     qty: 89.0,
     unit: 'm²',
     unitPrice: 62.30,
@@ -45,8 +39,6 @@ const tableData = [
     selected: false,
     kfeCode: 'KFE 23.45.03',
     description: 'Sockelleisten Aluminium 60mm eloxiert, inkl. Befestigung',
-    confidence: 45,
-    confidenceLevel: 'low' as const,
     qty: 34.2,
     unit: 'lfm',
     unitPrice: 18.90,
@@ -56,7 +48,6 @@ const tableData = [
 
 export default function ResultsPage() {
   const [selectedRows, setSelectedRows] = useState<string[]>(['1', '2']);
-  const [confidenceFilter, setConfidenceFilter] = useState<ConfidenceFilter>('all');
 
   const toggleRow = (id: string) => {
     setSelectedRows((prev) =>
@@ -71,11 +62,6 @@ export default function ResultsPage() {
       setSelectedRows(tableData.map((row) => row.id));
     }
   };
-
-  const filteredData = tableData.filter((row) => {
-    if (confidenceFilter === 'all') return true;
-    return row.confidenceLevel === confidenceFilter;
-  });
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('de-DE', {
@@ -164,54 +150,8 @@ export default function ResultsPage() {
           </div>
         </div>
 
-        {/* Filter Section */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600">Filter by Confidence:</span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setConfidenceFilter('all')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'all'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setConfidenceFilter('high')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'high'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                High (90%+)
-              </button>
-              <button
-                onClick={() => setConfidenceFilter('medium')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'medium'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                Medium (70-89%)
-              </button>
-              <button
-                onClick={() => setConfidenceFilter('low')}
-                className={`px-3 py-1 text-sm rounded-full transition-colors ${
-                  confidenceFilter === 'low'
-                    ? 'bg-gray-900 text-white'
-                    : 'border border-gray-200 text-gray-600 hover:border-gray-300'
-                }`}
-              >
-                Low (&lt;70%)
-              </button>
-            </div>
-          </div>
-
+        {/* Actions */}
+        <div className="flex items-center justify-end mb-4">
           <button className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors flex items-center gap-1.5">
             <Plus className="w-4 h-4" />
             Add Service
@@ -237,9 +177,6 @@ export default function ResultsPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Description
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
-                  Confidence
-                </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Qty
                 </th>
@@ -258,7 +195,7 @@ export default function ResultsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {filteredData.map((row) => (
+              {tableData.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <input
@@ -275,33 +212,6 @@ export default function ResultsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
                     {row.description}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`flex-1 h-2 rounded-full overflow-hidden ${
-                          row.confidenceLevel === 'high'
-                            ? 'bg-green-100'
-                            : row.confidenceLevel === 'medium'
-                            ? 'bg-amber-100'
-                            : 'bg-red-100'
-                        }`}
-                      >
-                        <div
-                          className={`h-full rounded-full ${
-                            row.confidenceLevel === 'high'
-                              ? 'bg-green-600'
-                              : row.confidenceLevel === 'medium'
-                              ? 'bg-amber-500'
-                              : 'bg-red-600'
-                          }`}
-                          style={{ width: `${row.confidence}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-gray-500 w-8">
-                        {row.confidence}%
-                      </span>
-                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900 text-right tabular-nums">
                     {formatCurrency(row.qty)}
@@ -334,8 +244,7 @@ export default function ResultsPage() {
         {/* Summary Row */}
         <div className="mt-4 flex justify-end">
           <div className="text-sm text-gray-600">
-            Showing <span className="font-medium text-gray-900">{filteredData.length}</span> of{' '}
-            <span className="font-medium text-gray-900">{tableData.length}</span> items •{' '}
+            Showing <span className="font-medium text-gray-900">{tableData.length}</span> items •{' '}
             <span className="font-medium text-gray-900">{selectedRows.length}</span> selected
           </div>
         </div>

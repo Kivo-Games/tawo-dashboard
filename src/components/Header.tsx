@@ -1,6 +1,5 @@
 'use client';
 
-import { Copy } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -51,17 +50,6 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Right side - Actions */}
-        <div className="flex items-center gap-1">
-          <button className="px-2 py-1 text-xs text-gray-600 hover:text-gray-900 transition-colors inline-flex items-center gap-1">
-            <Copy className="w-3 h-3" />
-            Copy
-          </button>
-
-          <button className="px-2.5 py-1 text-xs text-white bg-gray-900 rounded hover:bg-gray-800 transition-colors">
-            Share
-          </button>
-        </div>
       </div>
     </header>
   );
