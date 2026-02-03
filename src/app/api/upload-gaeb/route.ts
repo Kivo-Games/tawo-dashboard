@@ -4,14 +4,23 @@ const WEBHOOK_URL = 'https://n8n.kivosoftware.de/webhook/gaeb/x83-to-csv';
 
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
+    // Get the content-type header to forward it properly
+    const contentType = request.headers.get('content-type') || '';
+
+    // Forward the raw body to the webhook
+    const body = await request.arrayBuffer();
 
     const response = await fetch(WEBHOOK_URL, {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': contentType,
+      },
+      body: body,
     });
 
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Webhook error:', response.status, errorText);
       return NextResponse.json(
         { error: `Webhook returned status ${response.status}` },
         { status: response.status }
@@ -19,8 +28,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Try to return the response data
-    const contentType = response.headers.get('content-type');
-    if (contentType?.includes('application/json')) {
+    const responseContentType = response.headers.get('content-type');
+    if (responseContentType?.includes('application/json')) {
       const data = await response.json();
       return NextResponse.json(data);
     } else {
