@@ -10,6 +10,8 @@ export async function POST(request: NextRequest) {
     // Forward the raw body to the webhook
     const body = await request.arrayBuffer();
 
+    console.log('Forwarding request to webhook, body size:', body.byteLength);
+
     const response = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: {
@@ -18,23 +20,34 @@ export async function POST(request: NextRequest) {
       body: body,
     });
 
+    console.log('Webhook response status:', response.status);
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Webhook error:', response.status, errorText);
       return NextResponse.json(
-        { error: `Webhook returned status ${response.status}: ${errorText}` },
+        { error: `Webhook returned status ${response.status}` },
         { status: response.status }
       );
     }
 
-    // Try to return the response data
+    // Try to return the response data safely
     const responseContentType = response.headers.get('content-type');
-    if (responseContentType?.includes('application/json')) {
-      const data = await response.json();
-      return NextResponse.json(data);
+    const responseText = await response.text();
+
+    console.log('Webhook response content-type:', responseContentType);
+    console.log('Webhook response body length:', responseText.length);
+
+    if (responseContentType?.includes('application/json') && responseText) {
+      try {
+        const data = JSON.parse(responseText);
+        return NextResponse.json(data);
+      } catch {
+        // JSON parse failed, return as message
+        return NextResponse.json({ message: responseText || 'Upload successful' });
+      }
     } else {
-      const text = await response.text();
-      return NextResponse.json({ message: text || 'Upload successful' });
+      return NextResponse.json({ message: responseText || 'Upload successful' });
     }
   } catch (error) {
     console.error('Upload error:', error);

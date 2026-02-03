@@ -41,13 +41,19 @@ export default function CreateProjectPage() {
         body: formData,
       });
 
-      const data = await response.json();
-
       if (response.ok) {
         setUploadStatus('success');
         setUploadMessage(`File "${file.name}" uploaded successfully!`);
       } else {
-        throw new Error(data.error || `Upload failed with status ${response.status}`);
+        // Try to parse error message, but handle non-JSON responses
+        let errorMsg = `Upload failed with status ${response.status}`;
+        try {
+          const data = await response.json();
+          if (data.error) errorMsg = data.error;
+        } catch {
+          // Response wasn't JSON, use default message
+        }
+        throw new Error(errorMsg);
       }
     } catch (error) {
       setUploadStatus('error');
