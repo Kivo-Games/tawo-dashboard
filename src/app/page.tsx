@@ -41,15 +41,18 @@ export default function CreateProjectPage() {
         body: formData,
       });
 
+      const data = await response.json();
+
       if (response.ok) {
         setUploadStatus('success');
         setUploadMessage(`File "${file.name}" uploaded successfully!`);
       } else {
-        throw new Error(`Upload failed with status ${response.status}`);
+        throw new Error(data.error || `Upload failed with status ${response.status}`);
       }
     } catch (error) {
       setUploadStatus('error');
       setUploadMessage(error instanceof Error ? error.message : 'Upload failed. Please try again.');
+      console.error('Upload error:', error);
     }
   };
 

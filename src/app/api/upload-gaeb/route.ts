@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       const errorText = await response.text();
       console.error('Webhook error:', response.status, errorText);
       return NextResponse.json(
-        { error: `Webhook returned status ${response.status}` },
+        { error: `Webhook returned status ${response.status}: ${errorText}` },
         { status: response.status }
       );
     }
