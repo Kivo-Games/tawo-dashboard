@@ -3,7 +3,7 @@
 import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 
-const WEBHOOK_URL = 'https://n8n.kivosoftware.de/webhook/gaeb/x83-to-csv';
+const UPLOAD_API_URL = '/api/upload-gaeb';
 const SUPPORTED_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.p81'];
 
 export default function CreateProjectPage() {
@@ -36,7 +36,7 @@ export default function CreateProjectPage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch(WEBHOOK_URL, {
+      const response = await fetch(UPLOAD_API_URL, {
         method: 'POST',
         body: formData,
       });
