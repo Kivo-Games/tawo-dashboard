@@ -34,7 +34,7 @@ export default function CreateProjectPage() {
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('data', file);
 
       const response = await fetch(UPLOAD_API_URL, {
         method: 'POST',
