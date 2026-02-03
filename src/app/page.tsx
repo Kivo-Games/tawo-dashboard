@@ -1,12 +1,105 @@
 'use client';
 
-import { Upload } from 'lucide-react';
-import { useState } from 'react';
+import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+
+const WEBHOOK_URL = 'https://n8n.kivosoftware.de/webhook/gaeb/x83-to-csv';
+const SUPPORTED_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.p81'];
 
 export default function CreateProjectPage() {
   const [projectName, setProjectName] = useState('');
   const [margin, setMargin] = useState('15,0');
   const [context, setContext] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [fileName, setFileName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isValidFile = (file: File): boolean => {
+    const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+    return SUPPORTED_EXTENSIONS.includes(extension);
+  };
+
+  const uploadFile = async (file: File) => {
+    if (!isValidFile(file)) {
+      setUploadStatus('error');
+      setUploadMessage(`Invalid file type. Supported formats: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+      return;
+    }
+
+    setFileName(file.name);
+    setUploadStatus('uploading');
+    setUploadMessage('Uploading file...');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(WEBHOOK_URL, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        setUploadStatus('success');
+        setUploadMessage(`File "${file.name}" uploaded successfully!`);
+      } else {
+        throw new Error(`Upload failed with status ${response.status}`);
+      }
+    } catch (error) {
+      setUploadStatus('error');
+      setUploadMessage(error instanceof Error ? error.message : 'Upload failed. Please try again.');
+    }
+  };
+
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      uploadFile(files[0]);
+    }
+  };
+
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      uploadFile(files[0]);
+    }
+  };
+
+  const handleBrowseClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const resetUpload = () => {
+    setUploadStatus('idle');
+    setUploadMessage('');
+    setFileName('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div className="p-6">
@@ -61,20 +154,86 @@ export default function CreateProjectPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
                 GAEB File Upload
               </label>
-              <div className="border-2 border-dashed border-gray-200 rounded-lg p-8 text-center hover:border-gray-300 transition-colors cursor-pointer">
-                <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-                <p className="text-sm text-gray-600 mb-1">
-                  Drag and drop your GAEB file here, or click to browse
-                </p>
-                <p className="text-xs text-gray-400 mb-4">
-                  Supported formats: .x81, .x82, .x83, .d81, .p81
-                </p>
-                <button
-                  type="button"
-                  className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-                >
-                  Browse Files
-                </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".x81,.x82,.x83,.d81,.p81"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <div
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={uploadStatus === 'idle' ? handleBrowseClick : undefined}
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+                  isDragging
+                    ? 'border-gray-900 bg-gray-50'
+                    : uploadStatus === 'success'
+                    ? 'border-green-300 bg-green-50'
+                    : uploadStatus === 'error'
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                {uploadStatus === 'uploading' ? (
+                  <>
+                    <Loader2 className="mx-auto h-10 w-10 text-gray-400 mb-3 animate-spin" />
+                    <p className="text-sm text-gray-600 mb-1">{uploadMessage}</p>
+                    <p className="text-xs text-gray-400">{fileName}</p>
+                  </>
+                ) : uploadStatus === 'success' ? (
+                  <>
+                    <CheckCircle className="mx-auto h-10 w-10 text-green-500 mb-3" />
+                    <p className="text-sm text-green-600 mb-1">{uploadMessage}</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetUpload();
+                      }}
+                      className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+                    >
+                      Upload Another File
+                    </button>
+                  </>
+                ) : uploadStatus === 'error' ? (
+                  <>
+                    <AlertCircle className="mx-auto h-10 w-10 text-red-500 mb-3" />
+                    <p className="text-sm text-red-600 mb-1">{uploadMessage}</p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        resetUpload();
+                      }}
+                      className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Upload className={`mx-auto h-10 w-10 mb-3 ${isDragging ? 'text-gray-900' : 'text-gray-400'}`} />
+                    <p className="text-sm text-gray-600 mb-1">
+                      {isDragging ? 'Drop your file here' : 'Drag and drop your GAEB file here, or click to browse'}
+                    </p>
+                    <p className="text-xs text-gray-400 mb-4">
+                      Supported formats: .x81, .x82, .x83, .d81, .p81
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleBrowseClick();
+                      }}
+                      className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+                    >
+                      Browse Files
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
