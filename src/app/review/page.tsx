@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 
@@ -19,8 +19,8 @@ const COMPACT_COLUMN_KEYS = new Set([
   'ctlgCode',
 ]);
 
-/** Fixed width for Long text column (not content-dependent). */
-const LONG_TEXT_COLUMN_WIDTH = 220;
+/** Fixed width for Short text and Long text columns (equal, not content-dependent). */
+const TEXT_COLUMN_WIDTH = 220;
 
 type TableData = {
   headers: string[];
@@ -38,6 +38,17 @@ type ReviewData = {
 export default function ReviewPage() {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
+
+  const copyCellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
+  const handleCopyCell = async (text: string, rIdx: number, key: string) => {
+    const toCopy = text || '';
+    try {
+      await navigator.clipboard.writeText(toCopy);
+      setCopiedCellId(copyCellId(rIdx, key));
+      setTimeout(() => setCopiedCellId(null), 1500);
+    } catch {}
+  };
 
   const isRowExpanded = (rIdx: number) => expandedRows.has(rIdx);
   const isLong = (text: string) => text.length > EXPAND_THRESHOLD;
@@ -137,8 +148,8 @@ export default function ReviewPage() {
                       style={
                         COMPACT_COLUMN_KEYS.has(h)
                           ? { width: '1%' }
-                          : h === 'longText'
-                          ? { width: LONG_TEXT_COLUMN_WIDTH }
+                          : h === 'shortText' || h === 'longText'
+                          ? { width: TEXT_COLUMN_WIDTH }
                           : undefined
                       }
                     />
@@ -151,7 +162,7 @@ export default function ReviewPage() {
                         key={h}
                         className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
                           COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : ''
-                        } ${h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
+                        } ${h === 'shortText' || h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
                       >
                         {tableData.labels?.[h] ?? h}
                       </th>
@@ -165,7 +176,7 @@ export default function ReviewPage() {
                     return (
                       <tr
                         key={rIdx}
-                        className={`${remarkRow ? 'bg-gray-100' : ''} hover:bg-gray-50`}
+                        className={`${remarkRow ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'}`}
                       >
                         {tableData.headers.map((key) => {
                           const text = String(row[key] ?? '');
@@ -173,32 +184,47 @@ export default function ReviewPage() {
                           return (
                             <td
                               key={key}
-                              className={`px-3 py-2 text-gray-900 align-top ${
+                              className={`group px-3 py-2 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
                               } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''} ${
-                                key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
-                              }`}
+                                key === 'shortText' || key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
+                              } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
                               title={rowExpanded ? undefined : text}
                             >
                               <div className="flex items-start justify-between gap-2 min-w-0">
                                 <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
                                   {text || '—'}
                                 </span>
-                                {long ? (
+                                <div className="flex items-center gap-0.5 flex-shrink-0">
+                                  {long && key !== 'id' ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleExpandRow(rIdx)}
+                                      className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+                                      title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
+                                      aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
+                                    >
+                                      {rowExpanded ? (
+                                        <ChevronUp className="w-3.5 h-3.5" />
+                                      ) : (
+                                        <ChevronDown className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  ) : null}
                                   <button
                                     type="button"
-                                    onClick={() => toggleExpandRow(rIdx)}
-                                    className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors ml-1"
-                                    title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
-                                    aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
+                                    onClick={() => handleCopyCell(text, rIdx, key)}
+                                    className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
+                                    title="In Zwischenablage kopieren"
+                                    aria-label="Copy"
                                   >
-                                    {rowExpanded ? (
-                                      <ChevronUp className="w-3.5 h-3.5" />
+                                    {copiedCellId === copyCellId(rIdx, key) ? (
+                                      <Check className="w-3.5 h-3.5 text-green-600" />
                                     ) : (
-                                      <ChevronDown className="w-3.5 h-3.5" />
+                                      <Copy className="w-3.5 h-3.5" />
                                     )}
                                   </button>
-                                ) : null}
+                                </div>
                               </div>
                             </td>
                           );
