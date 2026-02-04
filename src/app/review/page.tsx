@@ -8,6 +8,17 @@ const EXPAND_THRESHOLD = 35; // show expand icon when content length exceeds thi
 
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 
+/** Column keys that should be content-fitted (narrow); the rest share remaining width. */
+const COMPACT_COLUMN_KEYS = new Set([
+  'type',
+  'rNoPart',
+  'pathNumbers',
+  'qty',
+  'unit',
+  'ctlgId',
+  'ctlgCode',
+]);
+
 type TableData = {
   headers: string[];
   rows: Record<string, string>[];
@@ -23,14 +34,19 @@ type ReviewData = {
 
 export default function ReviewPage() {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
-  const [expandedCell, setExpandedCell] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
-  const cellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
-  const isExpanded = (rIdx: number, key: string) => expandedCell === cellId(rIdx, key);
+  const isRowExpanded = (rIdx: number) => expandedRows.has(rIdx);
   const isLong = (text: string) => text.length > EXPAND_THRESHOLD;
-  const toggleExpand = (rIdx: number, key: string) => {
-    setExpandedCell((prev) => (prev === cellId(rIdx, key) ? null : cellId(rIdx, key)));
+  const toggleExpandRow = (rIdx: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rIdx)) next.delete(rIdx);
+      else next.add(rIdx);
+      return next;
+    });
   };
+  const isRemarkRow = (row: Record<string, string>) => String(row['type'] ?? '').toUpperCase() === 'REMARK';
 
   useEffect(() => {
     try {
@@ -109,13 +125,24 @@ export default function ReviewPage() {
               </p>
             </div>
             <div className="overflow-auto max-h-[60vh] w-full">
-              <table className="w-full text-sm border-collapse table-fixed">
+              <table className="w-full text-sm border-collapse table-auto">
+                <colgroup>
+                  {tableData.headers.map((h) => (
+                    <col
+                      key={h}
+                      className={COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : undefined}
+                      style={COMPACT_COLUMN_KEYS.has(h) ? { width: '1%' } : undefined}
+                    />
+                  ))}
+                </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   <tr>
                     {tableData.headers.map((h) => (
                       <th
                         key={h}
-                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                        className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
+                          COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : ''
+                        }`}
                       >
                         {tableData.labels?.[h] ?? h}
                       </th>
@@ -123,43 +150,49 @@ export default function ReviewPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {tableData.rows.map((row, rIdx) => (
-                    <tr key={rIdx} className="hover:bg-gray-50">
-                      {tableData.headers.map((key) => {
-                        const text = String(row[key] ?? '');
-                        const long = isLong(text);
-                        const expanded = isExpanded(rIdx, key);
-                        return (
-                          <td
-                            key={key}
-                            className={`px-3 py-2 text-gray-900 align-top ${
-                              expanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
-                            }`}
-                            title={expanded ? undefined : text}
-                          >
-                            <div className="flex items-start gap-1.5">
-                              <span className={expanded ? '' : 'min-w-0 truncate block'}>{text || '—'}</span>
-                              {long && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleExpand(rIdx, key)}
-                                  className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-                                  title={expanded ? 'Collapse' : 'Expand to see full text'}
-                                  aria-label={expanded ? 'Collapse' : 'Expand'}
-                                >
-                                  {expanded ? (
-                                    <ChevronUp className="w-3.5 h-3.5" />
-                                  ) : (
-                                    <ChevronDown className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {tableData.rows.map((row, rIdx) => {
+                    const rowExpanded = isRowExpanded(rIdx);
+                    const remarkRow = isRemarkRow(row);
+                    return (
+                      <tr
+                        key={rIdx}
+                        className={`${remarkRow ? 'bg-gray-100' : ''} hover:bg-gray-50`}
+                      >
+                        {tableData.headers.map((key) => {
+                          const text = String(row[key] ?? '');
+                          const long = isLong(text);
+                          return (
+                            <td
+                              key={key}
+                              className={`px-3 py-2 text-gray-900 align-top ${
+                                rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
+                              } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''}`}
+                              title={rowExpanded ? undefined : text}
+                            >
+                              <div className="flex items-start gap-1.5">
+                                <span className={rowExpanded ? '' : 'min-w-0 truncate block'}>{text || '—'}</span>
+                                {long && (
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleExpandRow(rIdx)}
+                                    className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+                                    title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
+                                    aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
+                                  >
+                                    {rowExpanded ? (
+                                      <ChevronUp className="w-3.5 h-3.5" />
+                                    ) : (
+                                      <ChevronDown className="w-3.5 h-3.5" />
+                                    )}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
