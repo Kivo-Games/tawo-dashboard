@@ -225,7 +225,7 @@ export default function MatchingPage() {
                       style={
                         COMPACT_COLUMN_KEYS.has(h)
                           ? { width: '1%' }
-                          : h === 'shortText' || h === 'longText'
+                          : h === 'pathLabels' || h === 'shortText' || h === 'longText'
                           ? { width: TEXT_COLUMN_WIDTH }
                           : undefined
                       }
@@ -242,7 +242,7 @@ export default function MatchingPage() {
                         key={h}
                         className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
                           COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : ''
-                        } ${h === 'shortText' || h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
+                        } ${h === 'pathLabels' || h === 'shortText' || h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
                       >
                         {tableData.labels?.[h] ?? h}
                       </th>
@@ -275,7 +275,7 @@ export default function MatchingPage() {
                               className={`group px-3 py-2 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
                               } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''} ${
-                                key === 'shortText' || key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
+                                key === 'pathLabels' || key === 'shortText' || key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
                               title={rowExpanded ? undefined : text}
                             >
