@@ -37,10 +37,8 @@ const MATCHING_EXTRA_COLUMNS: { key: string; label: string }[] = [
   { key: 'gesamtkosten', label: 'Gesamtkosten' },
 ];
 
-const WEBHOOK_URLS = [
-  'https://tawo.app.n8n.cloud/webhook/87040d37-7862-4840-b723-1c156c00b2d4',
-  'https://tawo.app.n8n.cloud/webhook-test/87040d37-7862-4840-b723-1c156c00b2d4',
-];
+/** Webhook to send row data to (test for now; add production later). */
+const MATCHING_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook-test/87040d37-7862-4840-b723-1c156c00b2d4';
 
 type TableData = {
   headers: string[];
@@ -118,21 +116,30 @@ export default function MatchingPage() {
     }
 
     setWebhookStatus('sending');
-    const payload = { rows: reviewData.tableData.rows };
+
+    const rowsOnlyItems = reviewData.tableData.rows.filter(
+      (row) => String(row['type'] ?? '').toUpperCase() !== 'REMARK'
+    );
+    const payload = { rows: rowsOnlyItems };
 
     const run = async () => {
+      const minSpinnerMs = 1500;
+      const start = Date.now();
       try {
-        await fetch(WEBHOOK_URLS[0], {
+        const response = await fetch(MATCHING_WEBHOOK_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        await new Promise((r) => setTimeout(r, 100));
-        await fetch(WEBHOOK_URLS[1], {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
+        const elapsed = Date.now() - start;
+        const remaining = Math.max(0, minSpinnerMs - elapsed);
+        if (remaining > 0) {
+          await new Promise((r) => setTimeout(r, remaining));
+        }
+        if (!response.ok) {
+          setWebhookStatus('error');
+          return;
+        }
         try {
           sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
         } catch {}
