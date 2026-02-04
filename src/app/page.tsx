@@ -6,6 +6,121 @@ import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 const UPLOAD_API_URL = '/api/upload-gaeb';
 const SUPPORTED_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.p81'];
 
+/** Parse CSV string into { headers, rows }. Handles quoted fields. */
+function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
+  const lines = csv.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length === 0) return { headers: [], rows: [] }
+  const parseRow = (line: string): string[] => {
+    const out: string[] = [];
+    let i = 0;
+    while (i < line.length) {
+      if (line[i] === '"') {
+        let cell = '';
+        i++;
+        while (i < line.length) {
+          if (line[i] === '"') {
+            i++;
+            if (line[i] === '"') { cell += '"'; i++; }
+            else break;
+          } else { cell += line[i]; i++; }
+        }
+        out.push(cell);
+        if (line[i] === ',') i++;
+      } else {
+        const j = line.indexOf(',', i);
+        if (j === -1) {
+          out.push(line.slice(i).trim());
+          break;
+        }
+        out.push(line.slice(i, j).trim());
+        i = j + 1;
+      }
+    }
+    return out;
+  };
+  const headers = parseRow(lines[0]);
+  const rows = lines.slice(1).map(parseRow);
+  return { headers, rows };
+}
+
+/** Known GAEB line-item columns (fixed order + optional display labels). */
+const GAEB_TABLE_COLUMNS: { key: string; label: string }[] = [
+  { key: 'type', label: 'Type' },
+  { key: 'rNoPart', label: 'Part no.' },
+  { key: 'pathNumbers', label: 'Path' },
+  { key: 'pathLabels', label: 'Path labels' },
+  { key: 'qty', label: 'Qty' },
+  { key: 'unit', label: 'Unit' },
+  { key: 'shortText', label: 'Short text' },
+  { key: 'longText', label: 'Long text' },
+  { key: 'ctlgId', label: 'Catalog ID' },
+  { key: 'ctlgCode', label: 'Catalog code' },
+  { key: 'id', label: 'ID' },
+];
+
+function isGaebLineItemArray(data: unknown): data is Record<string, unknown>[] {
+  if (!Array.isArray(data) || data.length === 0) return false;
+  const first = data[0];
+  if (typeof first !== 'object' || first === null) return false;
+  const keys = Object.keys(first);
+  return GAEB_TABLE_COLUMNS.every((c) => keys.includes(c.key));
+}
+
+/** Normalize API response into table shape: { headers, rows } (rows as objects by header). */
+function toTableData(data: unknown): { headers: string[]; rows: Record<string, string>[]; labels?: Record<string, string> } | null {
+  if (data == null) return null;
+  if (Array.isArray(data)) {
+    if (data.length === 0) return { headers: [], rows: [] };
+    const first = data[0];
+    let headers: string[];
+    const labels: Record<string, string> = {};
+    if (isGaebLineItemArray(data)) {
+      headers = GAEB_TABLE_COLUMNS.map((c) => c.key);
+      GAEB_TABLE_COLUMNS.forEach((c) => { labels[c.key] = c.label; });
+    } else {
+      headers = typeof first === 'object' && first !== null ? Object.keys(first as object) : [];
+    }
+    const rows = data.map((row) => {
+      const o: Record<string, string> = {};
+      if (typeof row === 'object' && row !== null) {
+        const keys = headers.length ? headers : Object.keys(row as object);
+        keys.forEach((k) => {
+          o[k] = String((row as Record<string, unknown>)[k] ?? '');
+        });
+      }
+      return o;
+    });
+    return labels && Object.keys(labels).length ? { headers, rows, labels } : { headers, rows };
+  }
+  if (typeof data === 'object' && data !== null && 'message' in data && typeof (data as { message: string }).message === 'string') {
+    const csv = (data as { message: string }).message;
+    if (/[\n,"]/.test(csv)) {
+      const { headers, rows } = parseCsv(csv);
+      return {
+        headers,
+        rows: rows.map((r) => {
+          const o: Record<string, string> = {};
+          headers.forEach((h, i) => { o[h] = r[i] ?? ''; });
+          return o;
+        }),
+      };
+    }
+  }
+  if (typeof data === 'object' && data !== null && 'rows' in data && Array.isArray((data as { rows: unknown }).rows)) {
+    const { rows, headers } = data as { rows: Record<string, unknown>[]; headers?: string[] };
+    const h = headers?.length ? headers : (rows[0] ? Object.keys(rows[0]) : []);
+    return {
+      headers: h,
+      rows: rows.map((r) => {
+        const o: Record<string, string> = {};
+        h.forEach((k) => { o[k] = String(r[k] ?? ''); });
+        return o;
+      }),
+    };
+  }
+  return null;
+}
+
 export default function CreateProjectPage() {
   const [projectName, setProjectName] = useState('');
   const [margin, setMargin] = useState('15,0');
@@ -14,6 +129,7 @@ export default function CreateProjectPage() {
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
   const [fileName, setFileName] = useState('');
+  const [tableData, setTableData] = useState<{ headers: string[]; rows: Record<string, string>[]; labels?: Record<string, string> } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isValidFile = (file: File): boolean => {
@@ -41,18 +157,18 @@ export default function CreateProjectPage() {
         body: formData,
       });
 
+      const responseData = await response.json().catch(() => null);
+
       if (response.ok) {
         setUploadStatus('success');
         setUploadMessage(`File "${file.name}" uploaded successfully!`);
+        const parsed = toTableData(responseData);
+        setTableData(parsed);
       } else {
-        // Try to parse error message, but handle non-JSON responses
-        let errorMsg = `Upload failed with status ${response.status}`;
-        try {
-          const data = await response.json();
-          if (data.error) errorMsg = data.error;
-        } catch {
-          // Response wasn't JSON, use default message
-        }
+        const errorMsg =
+          responseData && typeof responseData === 'object' && 'error' in responseData && typeof responseData.error === 'string'
+            ? responseData.error
+            : `Upload failed with status ${response.status}`;
         throw new Error(errorMsg);
       }
     } catch (error) {
@@ -105,6 +221,7 @@ export default function CreateProjectPage() {
     setUploadStatus('idle');
     setUploadMessage('');
     setFileName('');
+    setTableData(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -245,6 +362,42 @@ export default function CreateProjectPage() {
                 )}
               </div>
             </div>
+
+            {/* Parsed GAEB data table */}
+            {uploadStatus === 'success' && tableData && (tableData.headers.length > 0 || tableData.rows.length > 0) && (
+              <div className="mt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Converted data ({tableData.rows.length} rows)
+                </label>
+                <div className="border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
+                  <table className="w-full min-w-[600px] text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        {tableData.headers.map((h) => (
+                          <th
+                            key={h}
+                            className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                          >
+                            {tableData.labels?.[h] ?? h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {tableData.rows.map((row, rIdx) => (
+                        <tr key={rIdx} className="hover:bg-gray-50">
+                          {tableData.headers.map((key) => (
+                            <td key={key} className="px-3 py-2 text-gray-900 max-w-xs truncate" title={String(row[key] ?? '')}>
+                              {String(row[key] ?? '')}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Additional Context & Instructions */}
             <div>
