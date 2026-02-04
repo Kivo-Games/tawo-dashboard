@@ -37,8 +37,7 @@ const MATCHING_EXTRA_COLUMNS: { key: string; label: string }[] = [
   { key: 'gesamtkosten', label: 'Gesamtkosten' },
 ];
 
-/** Webhook to send row data to (test for now; add production later). */
-const MATCHING_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook-test/87040d37-7862-4840-b723-1c156c00b2d4';
+const MATCHING_API_URL = '/api/matching-webhook';
 
 type TableData = {
   headers: string[];
@@ -126,7 +125,7 @@ export default function MatchingPage() {
       const minSpinnerMs = 1500;
       const start = Date.now();
       try {
-        const response = await fetch(MATCHING_WEBHOOK_URL, {
+        const response = await fetch(MATCHING_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
