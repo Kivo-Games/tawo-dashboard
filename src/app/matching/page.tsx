@@ -17,6 +17,8 @@ const COMPACT_COLUMN_KEYS = new Set([
   'ctlgCode',
 ]);
 
+const LONG_TEXT_COLUMN_WIDTH = 220;
+
 const WEBHOOK_URLS = [
   'https://tawo.app.n8n.cloud/webhook/87040d37-7862-4840-b723-1c156c00b2d4',
   'https://tawo.app.n8n.cloud/webhook-test/87040d37-7862-4840-b723-1c156c00b2d4',
@@ -175,7 +177,13 @@ export default function MatchingPage() {
                     <col
                       key={h}
                       className={COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : undefined}
-                      style={COMPACT_COLUMN_KEYS.has(h) ? { width: '1%' } : undefined}
+                      style={
+                        COMPACT_COLUMN_KEYS.has(h)
+                          ? { width: '1%' }
+                          : h === 'longText'
+                          ? { width: LONG_TEXT_COLUMN_WIDTH }
+                          : undefined
+                      }
                     />
                   ))}
                 </colgroup>
@@ -186,7 +194,7 @@ export default function MatchingPage() {
                         key={h}
                         className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
                           COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : ''
-                        }`}
+                        } ${h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
                       >
                         {tableData.labels?.[h] ?? h}
                       </th>
@@ -210,18 +218,20 @@ export default function MatchingPage() {
                               key={key}
                               className={`px-3 py-2 text-gray-900 align-top ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
-                              } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''}`}
+                              } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''} ${
+                                key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
+                              }`}
                               title={rowExpanded ? undefined : text}
                             >
-                              <div className="flex items-start gap-1.5">
-                                <span className={rowExpanded ? '' : 'min-w-0 truncate block'}>
+                              <div className="flex items-start justify-between gap-2 min-w-0">
+                                <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
                                   {text || '—'}
                                 </span>
-                                {long && (
+                                {long ? (
                                   <button
                                     type="button"
                                     onClick={() => toggleExpandRow(rIdx)}
-                                    className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+                                    className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors ml-1"
                                     title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
                                     aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
                                   >
@@ -231,7 +241,7 @@ export default function MatchingPage() {
                                       <ChevronDown className="w-3.5 h-3.5" />
                                     )}
                                   </button>
-                                )}
+                                ) : null}
                               </div>
                             </td>
                           );
