@@ -1,8 +1,10 @@
 'use client';
 
-import { FileText } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+
+const EXPAND_THRESHOLD = 35; // show expand icon when content length exceeds this
 
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 
@@ -21,6 +23,14 @@ type ReviewData = {
 
 export default function ReviewPage() {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
+  const [expandedCell, setExpandedCell] = useState<string | null>(null);
+
+  const cellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
+  const isExpanded = (rIdx: number, key: string) => expandedCell === cellId(rIdx, key);
+  const isLong = (text: string) => text.length > EXPAND_THRESHOLD;
+  const toggleExpand = (rIdx: number, key: string) => {
+    setExpandedCell((prev) => (prev === cellId(rIdx, key) ? null : cellId(rIdx, key)));
+  };
 
   useEffect(() => {
     try {
@@ -38,8 +48,8 @@ export default function ReviewPage() {
 
   if (reviewData === null) {
     return (
-      <div className="p-6">
-        <div className="max-w-3xl mx-auto">
+      <div className="p-6 w-full max-w-full">
+        <div className="w-full max-w-3xl mx-auto">
           <h1 className="text-2xl font-semibold text-gray-900 mb-6">
             Review Upload & Start Matching
           </h1>
@@ -64,8 +74,8 @@ export default function ReviewPage() {
   const totalLineItems = tableData.rows.length;
 
   return (
-    <div className="p-6">
-      <div className="max-w-6xl mx-auto">
+    <div className="p-6 w-full max-w-full">
+      <div className="w-full max-w-full">
         <h1 className="text-2xl font-semibold text-gray-900 mb-6">
           Review Upload & Start Matching
         </h1>
@@ -98,8 +108,8 @@ export default function ReviewPage() {
                 Converted data ({tableData.rows.length} rows)
               </p>
             </div>
-            <div className="overflow-auto max-h-[60vh]">
-              <table className="w-full min-w-[600px] text-sm border-collapse">
+            <div className="overflow-auto max-h-[60vh] w-full">
+              <table className="w-full text-sm border-collapse table-fixed">
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   <tr>
                     {tableData.headers.map((h) => (
@@ -115,15 +125,39 @@ export default function ReviewPage() {
                 <tbody className="divide-y divide-gray-200">
                   {tableData.rows.map((row, rIdx) => (
                     <tr key={rIdx} className="hover:bg-gray-50">
-                      {tableData.headers.map((key) => (
-                        <td
-                          key={key}
-                          className="px-3 py-2 text-gray-900 whitespace-nowrap max-w-[280px] truncate"
-                          title={String(row[key] ?? '')}
-                        >
-                          {String(row[key] ?? '')}
-                        </td>
-                      ))}
+                      {tableData.headers.map((key) => {
+                        const text = String(row[key] ?? '');
+                        const long = isLong(text);
+                        const expanded = isExpanded(rIdx, key);
+                        return (
+                          <td
+                            key={key}
+                            className={`px-3 py-2 text-gray-900 align-top ${
+                              expanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
+                            }`}
+                            title={expanded ? undefined : text}
+                          >
+                            <div className="flex items-start gap-1.5">
+                              <span className={expanded ? '' : 'min-w-0 truncate block'}>{text || '—'}</span>
+                              {long && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(rIdx, key)}
+                                  className="flex-shrink-0 p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                                  title={expanded ? 'Collapse' : 'Expand to see full text'}
+                                  aria-label={expanded ? 'Collapse' : 'Expand'}
+                                >
+                                  {expanded ? (
+                                    <ChevronUp className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
