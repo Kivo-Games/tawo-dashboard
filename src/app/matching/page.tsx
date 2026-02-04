@@ -57,6 +57,7 @@ export default function MatchingPage() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [statsVisible, setStatsVisible] = useState(true);
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
+  const [sendingRowIndex, setSendingRowIndex] = useState<number | null>(null);
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
 
   const copyCellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
@@ -102,7 +103,7 @@ export default function MatchingPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Fire webhooks when we have data (once per dataset; persist so revisit doesn't resend)
+  // Fire webhooks when we have data: one row at a time, test then production, 0.1s between requests
   useEffect(() => {
     if (!reviewData?.tableData?.rows?.length) return;
 
@@ -114,37 +115,51 @@ export default function MatchingPage() {
       return;
     }
 
+    const rows = reviewData.tableData.rows;
+    const itemRowsWithIndex = rows
+      .map((row, rIdx) => ({ rIdx, row }))
+      .filter(({ row }) => String(row['type'] ?? '').toUpperCase() !== 'REMARK');
+
+    if (itemRowsWithIndex.length === 0) {
+      setWebhookStatus('done');
+      try {
+        sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
+      } catch {}
+      return;
+    }
+
     setWebhookStatus('sending');
 
-    const rowsOnlyItems = reviewData.tableData.rows.filter(
-      (row) => String(row['type'] ?? '').toUpperCase() !== 'REMARK'
-    );
-    const payload = { rows: rowsOnlyItems };
-
     const run = async () => {
-      const minSpinnerMs = 1500;
-      const start = Date.now();
       try {
-        const response = await fetch(MATCHING_API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        const elapsed = Date.now() - start;
-        const remaining = Math.max(0, minSpinnerMs - elapsed);
-        if (remaining > 0) {
-          await new Promise((r) => setTimeout(r, remaining));
+        for (let i = 0; i < itemRowsWithIndex.length; i++) {
+          const { rIdx, row } = itemRowsWithIndex[i];
+          setSendingRowIndex(rIdx);
+
+          const response = await fetch(MATCHING_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rows: [row] }),
+          });
+
+          if (!response.ok) {
+            setWebhookStatus('error');
+            setSendingRowIndex(null);
+            return;
+          }
+
+          if (i < itemRowsWithIndex.length - 1) {
+            await new Promise((r) => setTimeout(r, 100));
+          }
         }
-        if (!response.ok) {
-          setWebhookStatus('error');
-          return;
-        }
+        setSendingRowIndex(null);
         try {
           sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
         } catch {}
         setWebhookStatus('done');
       } catch {
         setWebhookStatus('error');
+        setSendingRowIndex(null);
       }
     };
     run();
@@ -316,16 +331,17 @@ export default function MatchingPage() {
                             </td>
                           );
                         })}
-                        {/* Extra columns: loading spinner until data sent, then empty */}
+                        {/* Extra columns: spinner only on the row currently being sent */}
                         {MATCHING_EXTRA_COLUMNS.map((c) => {
-                          const extraText = webhookStatus === 'sending' ? '' : '—';
+                          const isThisRowSending = sendingRowIndex === rIdx;
+                          const extraText = isThisRowSending ? '' : '—';
                           return (
                             <td
                               key={c.key}
                               className={`group px-3 py-2 text-gray-500 align-top w-[90px] text-right transition-colors hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
                             >
                               <div className="flex items-center justify-end gap-1 min-w-0">
-                                {webhookStatus === 'sending' ? (
+                                {isThisRowSending ? (
                                   <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
                                 ) : (
                                   <span>—</span>

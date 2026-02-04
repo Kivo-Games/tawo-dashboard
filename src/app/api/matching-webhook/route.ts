@@ -29,22 +29,23 @@ export async function POST(request: NextRequest) {
       return res;
     };
 
-    const resProd = await sendTo(MATCHING_WEBHOOK_PRODUCTION, 'production');
-    await new Promise((r) => setTimeout(r, 100));
+    // Test first, then 0.1s delay, then production
     const resTest = await sendTo(MATCHING_WEBHOOK_TEST, 'test');
+    await new Promise((r) => setTimeout(r, 100));
+    const resProd = await sendTo(MATCHING_WEBHOOK_PRODUCTION, 'production');
 
-    if (!resProd.ok) {
-      console.error('Matching webhook production failed:', resProd.status);
-      return NextResponse.json(
-        { error: `Production webhook returned ${resProd.status}` },
-        { status: resProd.status }
-      );
-    }
     if (!resTest.ok) {
       console.error('Matching webhook test failed:', resTest.status);
       return NextResponse.json(
         { error: `Test webhook returned ${resTest.status}` },
         { status: resTest.status }
+      );
+    }
+    if (!resProd.ok) {
+      console.error('Matching webhook production failed:', resProd.status);
+      return NextResponse.json(
+        { error: `Production webhook returned ${resProd.status}` },
+        { status: resProd.status }
       );
     }
 
