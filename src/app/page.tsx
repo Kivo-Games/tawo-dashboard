@@ -124,6 +124,18 @@ function toTableData(data: unknown): { headers: string[]; rows: Record<string, s
 
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 
+function hasExistingReviewData(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const raw = sessionStorage.getItem(REVIEW_STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    return data?.tableData?.rows != null && Array.isArray(data.tableData.rows);
+  } catch {
+    return false;
+  }
+}
+
 export default function CreateProjectPage() {
   const router = useRouter();
   const [projectName, setProjectName] = useState('');
@@ -133,6 +145,7 @@ export default function CreateProjectPage() {
   const [uploadMessage, setUploadMessage] = useState('');
   const [fileName, setFileName] = useState('');
   const [tableData, setTableData] = useState<{ headers: string[]; rows: Record<string, string>[]; labels?: Record<string, string> } | null>(null);
+  const [confirmOverwrite, setConfirmOverwrite] = useState<null | 'reset' | { file: File }>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isValidFile = (file: File): boolean => {
@@ -221,14 +234,22 @@ export default function CreateProjectPage() {
 
     const files = e.dataTransfer.files;
     if (files && files.length > 0) {
-      uploadFile(files[0]);
+      if (hasExistingReviewData()) {
+        setConfirmOverwrite({ file: files[0] });
+      } else {
+        uploadFile(files[0]);
+      }
     }
   };
 
   const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      uploadFile(files[0]);
+      if (hasExistingReviewData()) {
+        setConfirmOverwrite({ file: files[0] });
+      } else {
+        uploadFile(files[0]);
+      }
     }
   };
 
@@ -246,8 +267,76 @@ export default function CreateProjectPage() {
     }
   };
 
+  const requestResetUpload = () => {
+    if (hasExistingReviewData()) {
+      setConfirmOverwrite('reset');
+    } else {
+      try {
+        sessionStorage.removeItem(REVIEW_STORAGE_KEY);
+      } catch {}
+      resetUpload();
+    }
+  };
+
+  const handleConfirmOverwrite = () => {
+    if (confirmOverwrite === 'reset') {
+      try {
+        sessionStorage.removeItem(REVIEW_STORAGE_KEY);
+      } catch {}
+      resetUpload();
+    } else if (confirmOverwrite && typeof confirmOverwrite === 'object' && confirmOverwrite.file) {
+      uploadFile(confirmOverwrite.file);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+    setConfirmOverwrite(null);
+  };
+
+  const handleCancelOverwrite = () => {
+    setConfirmOverwrite(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   return (
     <div className="p-6">
+      {/* Overwrite confirmation – only when review/matching data exists */}
+      {confirmOverwrite !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={handleCancelOverwrite}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="confirm-overwrite-title"
+        >
+          <div
+            className="bg-white rounded-lg shadow-lg border border-gray-200 p-5 max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="confirm-overwrite-title" className="text-sm font-semibold text-gray-900 mb-2">
+              Andere Datei hochladen?
+            </h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Es sind bereits Daten in Prüfung oder Matching. Ein neuer Upload überschreibt diese und bricht den aktuellen Vorgang ab.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCancelOverwrite}
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmOverwrite}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-gray-900 hover:bg-gray-800 rounded-md transition-colors"
+              >
+                Ja, überschreiben
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-semibold text-gray-900 mb-8">
           Neues Projekt erstellen
@@ -336,7 +425,7 @@ export default function CreateProjectPage() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        resetUpload();
+                        requestResetUpload();
                       }}
                       className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
                     >
@@ -351,7 +440,7 @@ export default function CreateProjectPage() {
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        resetUpload();
+                        requestResetUpload();
                       }}
                       className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
                     >
