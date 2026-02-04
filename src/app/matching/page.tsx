@@ -103,7 +103,7 @@ export default function MatchingPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Fire webhooks when we have data: one row at a time, test then production, 0.1s between requests
+  // Fire webhooks when we have data: one row at a time, production only, 0.1s between each request
   useEffect(() => {
     if (!reviewData?.tableData?.rows?.length) return;
 
