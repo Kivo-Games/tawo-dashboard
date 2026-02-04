@@ -6,9 +6,9 @@ import { Clock, FileText, Check, X, Plus } from 'lucide-react';
 
 const steps = [
   { number: 1, label: 'Upload', href: '/' },
-  { number: 2, label: 'Review', href: '/review' },
+  { number: 2, label: 'Prüfung', href: '/review' },
   { number: 3, label: 'Matching', href: '/matching' },
-  { number: 4, label: 'Results & Review', href: '/results' },
+  { number: 4, label: 'Ergebnisse', href: '/results' },
 ];
 
 const currentStep = 4;
@@ -94,10 +94,10 @@ export default function ResultsPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">
-              Project: Office Building
+              Projekt: Bürogebäude
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Matching complete • Ready for review
+              Matching abgeschlossen • Bereit zur Überprüfung
             </p>
           </div>
 
@@ -105,23 +105,23 @@ export default function ResultsPage() {
             <button className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
               <span className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4" />
-                History
+                Verlauf
               </span>
             </button>
             <button className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
               <span className="flex items-center gap-1.5">
                 <FileText className="w-4 h-4" />
-                Export GAEB
+                GAEB exportieren
               </span>
             </button>
             <button className="px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors">
               <span className="flex items-center gap-1.5">
                 <FileText className="w-4 h-4" />
-                Export PDF
+                PDF exportieren
               </span>
             </button>
             <button className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors">
-              Save Changes
+              Änderungen speichern
             </button>
           </div>
         </div>
@@ -129,24 +129,24 @@ export default function ResultsPage() {
         {/* Cost Summary Cards */}
         <div className="grid grid-cols-4 gap-4 mb-6">
           <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-500 mb-1">Material Costs</p>
-            <p className="text-2xl font-semibold text-gray-900">€24,892.50</p>
-            <p className="text-xs text-green-600 mt-1">Adjusts live ✓</p>
+            <p className="text-xs text-gray-500 mb-1">Materialkosten</p>
+            <p className="text-2xl font-semibold text-gray-900">€24.892,50</p>
+            <p className="text-xs text-green-600 mt-1">Aktualisiert live ✓</p>
           </div>
           <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-500 mb-1">Labour Costs</p>
-            <p className="text-2xl font-semibold text-gray-900">€18,450.00</p>
-            <p className="text-xs text-green-600 mt-1">Adjusts live ✓</p>
+            <p className="text-xs text-gray-500 mb-1">Lohnkosten</p>
+            <p className="text-2xl font-semibold text-gray-900">€18.450,00</p>
+            <p className="text-xs text-green-600 mt-1">Aktualisiert live ✓</p>
           </div>
           <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-xs text-gray-500 mb-1">Total Net</p>
-            <p className="text-2xl font-semibold text-gray-900">€43,342.50</p>
-            <p className="text-xs text-green-600 mt-1">Adjusts live ✓</p>
+            <p className="text-xs text-gray-500 mb-1">Gesamt Netto</p>
+            <p className="text-2xl font-semibold text-gray-900">€43.342,50</p>
+            <p className="text-xs text-green-600 mt-1">Aktualisiert live ✓</p>
           </div>
           <div className="bg-green-50 border border-green-100 rounded-lg p-4">
-            <p className="text-xs text-gray-500 mb-1">Margin (15%)</p>
-            <p className="text-2xl font-semibold text-gray-900">€6,501.38</p>
-            <p className="text-xs text-green-600 mt-1">Adjusts live ✓</p>
+            <p className="text-xs text-gray-500 mb-1">Marge (15%)</p>
+            <p className="text-2xl font-semibold text-gray-900">€6.501,38</p>
+            <p className="text-xs text-green-600 mt-1">Aktualisiert live ✓</p>
           </div>
         </div>
 
@@ -154,7 +154,7 @@ export default function ResultsPage() {
         <div className="flex items-center justify-end mb-4">
           <button className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors flex items-center gap-1.5">
             <Plus className="w-4 h-4" />
-            Add Service
+            Leistung hinzufügen
           </button>
         </div>
 
@@ -172,25 +172,25 @@ export default function ResultsPage() {
                   />
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  KFE Code
+                  KFE-Code
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
+                  Beschreibung
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Qty
+                  Menge
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Unit
+                  Einheit
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Unit Price
+                  Einzelpreis
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Total
+                  Gesamt
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
-                  Actions
+                  Aktionen
                 </th>
               </tr>
             </thead>
@@ -244,8 +244,8 @@ export default function ResultsPage() {
         {/* Summary Row */}
         <div className="mt-4 flex justify-end">
           <div className="text-sm text-gray-600">
-            Showing <span className="font-medium text-gray-900">{tableData.length}</span> items •{' '}
-            <span className="font-medium text-gray-900">{selectedRows.length}</span> selected
+            Zeige <span className="font-medium text-gray-900">{tableData.length}</span> Positionen •{' '}
+            <span className="font-medium text-gray-900">{selectedRows.length}</span> ausgewählt
           </div>
         </div>
       </div>

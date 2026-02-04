@@ -143,13 +143,13 @@ export default function CreateProjectPage() {
   const uploadFile = async (file: File) => {
     if (!isValidFile(file)) {
       setUploadStatus('error');
-      setUploadMessage(`Invalid file type. Supported formats: ${SUPPORTED_EXTENSIONS.join(', ')}`);
+      setUploadMessage(`Ungültiges Dateiformat. Unterstützte Formate: ${SUPPORTED_EXTENSIONS.join(', ')}`);
       return;
     }
 
     setFileName(file.name);
     setUploadStatus('uploading');
-    setUploadMessage('Uploading file...');
+    setUploadMessage('Datei wird hochgeladen...');
 
     try {
       const formData = new FormData();
@@ -164,7 +164,7 @@ export default function CreateProjectPage() {
 
       if (response.ok) {
         setUploadStatus('success');
-        setUploadMessage(`File "${file.name}" uploaded successfully!`);
+        setUploadMessage(`Datei "${file.name}" erfolgreich hochgeladen!`);
         const parsed = toTableData(responseData);
         setTableData(parsed);
         if (parsed && (parsed.headers.length > 0 || parsed.rows.length > 0)) {
@@ -187,12 +187,12 @@ export default function CreateProjectPage() {
         const errorMsg =
           responseData && typeof responseData === 'object' && 'error' in responseData && typeof responseData.error === 'string'
             ? responseData.error
-            : `Upload failed with status ${response.status}`;
+            : `Upload fehlgeschlagen mit Status ${response.status}`;
         throw new Error(errorMsg);
       }
     } catch (error) {
       setUploadStatus('error');
-      setUploadMessage(error instanceof Error ? error.message : 'Upload failed. Please try again.');
+      setUploadMessage(error instanceof Error ? error.message : 'Upload fehlgeschlagen. Bitte erneut versuchen.');
       console.error('Upload error:', error);
     }
   };
@@ -250,7 +250,7 @@ export default function CreateProjectPage() {
     <div className="p-6">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-semibold text-gray-900 mb-8">
-          Create New Project
+          Neues Projekt erstellen
         </h1>
 
         <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -261,14 +261,14 @@ export default function CreateProjectPage() {
                 htmlFor="projectName"
                 className="block text-sm font-medium text-gray-700 mb-1.5"
               >
-                Project Name *
+                Projektname *
               </label>
               <input
                 type="text"
                 id="projectName"
                 value={projectName}
                 onChange={(e) => setProjectName(e.target.value)}
-                placeholder="Enter project name"
+                placeholder="Projektname eingeben"
                 required
                 className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
               />
@@ -280,7 +280,7 @@ export default function CreateProjectPage() {
                 htmlFor="margin"
                 className="block text-sm font-medium text-gray-700 mb-1.5"
               >
-                Default Margin (%)
+                Standard-Marge (%)
               </label>
               <input
                 type="text"
@@ -290,14 +290,14 @@ export default function CreateProjectPage() {
                 className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
               />
               <p className="mt-1.5 text-xs text-gray-500">
-                Standard margin applied in calculations
+                Standardmarge für Kalkulationen
               </p>
             </div>
 
             {/* GAEB File Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                GAEB File Upload
+                GAEB-Datei hochladen
               </label>
               <input
                 ref={fileInputRef}
@@ -340,7 +340,7 @@ export default function CreateProjectPage() {
                       }}
                       className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
                     >
-                      Upload Another File
+                      Weitere Datei hochladen
                     </button>
                   </>
                 ) : uploadStatus === 'error' ? (
@@ -355,17 +355,17 @@ export default function CreateProjectPage() {
                       }}
                       className="mt-3 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
                     >
-                      Try Again
+                      Erneut versuchen
                     </button>
                   </>
                 ) : (
                   <>
                     <Upload className={`mx-auto h-10 w-10 mb-3 ${isDragging ? 'text-gray-900' : 'text-gray-400'}`} />
                     <p className="text-sm text-gray-600 mb-1">
-                      {isDragging ? 'Drop your file here' : 'Drag and drop your GAEB file here, or click to browse'}
+                      {isDragging ? 'Datei hier ablegen' : 'GAEB-Datei hierher ziehen oder klicken zum Durchsuchen'}
                     </p>
                     <p className="text-xs text-gray-400 mb-4">
-                      Supported formats: .x81, .x82, .x83, .d81, .p81
+                      Unterstützte Formate: .x81, .x82, .x83, .d81, .p81
                     </p>
                     <button
                       type="button"
@@ -375,13 +375,12 @@ export default function CreateProjectPage() {
                       }}
                       className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
                     >
-                      Browse Files
+                      Dateien durchsuchen
                     </button>
                   </>
                 )}
               </div>
             </div>
-
           </form>
         </div>
       </div>
