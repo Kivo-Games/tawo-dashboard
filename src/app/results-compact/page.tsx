@@ -57,28 +57,28 @@ export default function ResultsCompactPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">
-              Project: Office Building
+              Projekt: Bürogebäude
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Matching complete • Ready for review
+              Matching abgeschlossen • Bereit zur Überprüfung
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button className="px-4 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
-              History
+              Verlauf
             </button>
             <button className="px-4 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5">
               <FileText className="w-4 h-4" />
-              Export GAEB
+              GAEB exportieren
             </button>
             <button className="px-4 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors flex items-center gap-1.5">
               <FileText className="w-4 h-4" />
-              Export PDF
+              PDF exportieren
             </button>
             <button className="px-4 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors">
-              Save Changes
+              Änderungen speichern
             </button>
           </div>
         </div>
@@ -87,7 +87,7 @@ export default function ResultsCompactPage() {
         <div className="flex items-center justify-end mb-4">
           <button className="px-3 py-1.5 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors flex items-center gap-1.5">
             <Plus className="w-4 h-4" />
-            Add Service
+            Leistung hinzufügen
           </button>
         </div>
 
@@ -97,25 +97,25 @@ export default function ResultsCompactPage() {
             <thead>
               <tr className="bg-gray-50">
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200">
-                  Matched Service
+                  Zugeordnete Leistung
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-16">
-                  Qty
+                  Menge
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-20">
-                  Labor (h)
+                  Lohn (h)
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-24">
-                  Labor Cost
+                  Lohnkosten
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-24">
                   Material
                 </th>
                 <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-24">
-                  Total
+                  Gesamt
                 </th>
                 <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-gray-200 w-20">
-                  Actions
+                  Aktionen
                 </th>
               </tr>
             </thead>
@@ -142,7 +142,7 @@ export default function ResultsCompactPage() {
                         </>
                       ) : (
                         <button className="text-xs text-gray-600 hover:underline">
-                          Assign Service
+                          Leistung zuordnen
                         </button>
                       )}
                     </div>
@@ -196,7 +196,7 @@ export default function ResultsCompactPage() {
         {/* Summary Row */}
         <div className="mt-3 flex justify-end">
           <div className="text-xs text-gray-500">
-            Showing <span className="font-medium text-gray-700">{tableData.length}</span> items
+            Zeige <span className="font-medium text-gray-700">{tableData.length}</span> Positionen
           </div>
         </div>
       </div>

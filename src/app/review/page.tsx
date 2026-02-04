@@ -41,18 +41,18 @@ export default function ReviewPage() {
       <div className="p-6">
         <div className="max-w-3xl mx-auto">
           <h1 className="text-2xl font-semibold text-gray-900 mb-6">
-            Review Upload & Start Matching
+            Upload prüfen & Matching starten
           </h1>
           <div className="border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-600 mb-4">No upload data found.</p>
+            <p className="text-gray-600 mb-4">Keine Upload-Daten gefunden.</p>
             <p className="text-sm text-gray-500 mb-6">
-              Upload a GAEB file on the Create Project page to continue.
+              Laden Sie eine GAEB-Datei auf der Projekt-Seite hoch, um fortzufahren.
             </p>
             <Link
               href="/"
               className="inline-flex px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
             >
-              ← Back to Upload
+              ← Zurück zum Upload
             </Link>
           </div>
         </div>
@@ -67,7 +67,7 @@ export default function ReviewPage() {
     <div className="p-6">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-semibold text-gray-900 mb-6">
-          Review Upload & Start Matching
+          Upload prüfen & Matching starten
         </h1>
 
         {/* Uploaded File Card */}
@@ -77,7 +77,7 @@ export default function ReviewPage() {
               <FileText className="w-6 h-6 text-gray-400" />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-900">Uploaded File</p>
+              <p className="text-sm font-medium text-gray-900">Hochgeladene Datei</p>
               <p className="text-xs text-gray-500 mt-0.5">{fileName}</p>
             </div>
           </div>
@@ -85,7 +85,7 @@ export default function ReviewPage() {
           <div className="grid grid-cols-1 gap-4">
             <div className="bg-gray-50 rounded-lg p-4 max-w-xs">
               <p className="text-2xl font-semibold text-gray-900">{totalLineItems}</p>
-              <p className="text-xs text-gray-500 mt-1">Total Line Items</p>
+              <p className="text-xs text-gray-500 mt-1">Positionen gesamt</p>
             </div>
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function ReviewPage() {
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
               <p className="text-sm font-medium text-gray-700">
-                Converted data ({tableData.rows.length} rows)
+                Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
             </div>
             <div className="overflow-auto max-h-[60vh]">
@@ -138,13 +138,13 @@ export default function ReviewPage() {
             href="/"
             className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
           >
-            ← Back to Upload
+            ← Zurück zum Upload
           </Link>
           <Link
             href="/matching"
             className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
           >
-            Start Matching Process →
+            Matching-Prozess starten →
           </Link>
         </div>
       </div>
