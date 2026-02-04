@@ -1,17 +1,71 @@
 'use client';
 
-import { FileText, AlertCircle, ChevronDown } from 'lucide-react';
+import { FileText } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+
+const REVIEW_STORAGE_KEY = 'tawo_review_data';
+
+type TableData = {
+  headers: string[];
+  rows: Record<string, string>[];
+  labels?: Record<string, string>;
+};
+
+type ReviewData = {
+  tableData: TableData;
+  projectName: string;
+  margin: string;
+  fileName: string;
+};
 
 export default function ReviewPage() {
-  const [labourCost, setLabourCost] = useState('40');
-  const [marginCategory, setMarginCategory] = useState('standard');
+  const [reviewData, setReviewData] = useState<ReviewData | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(REVIEW_STORAGE_KEY);
+      if (raw) {
+        const data = JSON.parse(raw) as ReviewData;
+        if (data?.tableData?.headers && Array.isArray(data.tableData.rows)) {
+          setReviewData(data);
+        }
+      }
+    } catch {
+      setReviewData(null);
+    }
+  }, []);
+
+  if (reviewData === null) {
+    return (
+      <div className="p-6">
+        <div className="max-w-3xl mx-auto">
+          <h1 className="text-2xl font-semibold text-gray-900 mb-6">
+            Review Upload & Start Matching
+          </h1>
+          <div className="border border-gray-200 rounded-lg p-8 text-center">
+            <p className="text-gray-600 mb-4">No upload data found.</p>
+            <p className="text-sm text-gray-500 mb-6">
+              Upload a GAEB file on the Create Project page to continue.
+            </p>
+            <Link
+              href="/"
+              className="inline-flex px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+            >
+              ← Back to Upload
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { tableData, fileName } = reviewData;
+  const totalLineItems = tableData.rows.length;
 
   return (
     <div className="p-6">
-      <div className="max-w-3xl mx-auto">
-        {/* Page Title */}
+      <div className="max-w-6xl mx-auto">
         <h1 className="text-2xl font-semibold text-gray-900 mb-6">
           Review Upload & Start Matching
         </h1>
@@ -24,70 +78,59 @@ export default function ReviewPage() {
             </div>
             <div>
               <p className="text-sm font-medium text-gray-900">Uploaded File</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                2.4 MB • Uploaded just now
-              </p>
+              <p className="text-xs text-gray-500 mt-0.5">{fileName}</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-2xl font-semibold text-gray-900">247</p>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="bg-gray-50 rounded-lg p-4 max-w-xs">
+              <p className="text-2xl font-semibold text-gray-900">{totalLineItems}</p>
               <p className="text-xs text-gray-500 mt-1">Total Line Items</p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-2xl font-semibold text-gray-900">12</p>
-              <p className="text-xs text-gray-500 mt-1">Categories Found</p>
-            </div>
           </div>
         </div>
 
-        {/* Quick Settings Check */}
-        <div className="bg-amber-50 border border-amber-100 rounded-lg p-5 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <AlertCircle className="w-4 h-4 text-amber-600" />
-            <p className="text-sm font-medium text-gray-900">Quick Settings Check</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label
-                htmlFor="labourCost"
-                className="block text-sm text-gray-700 mb-1.5"
-              >
-                Hourly Labour Cost (€)
-              </label>
-              <input
-                type="text"
-                id="labourCost"
-                value={labourCost}
-                onChange={(e) => setLabourCost(e.target.value)}
-                className="w-full px-3 py-2 bg-white border border-amber-200 rounded-md text-sm focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
-              />
+        {/* Data Table */}
+        {tableData.headers.length > 0 && tableData.rows.length > 0 && (
+          <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <p className="text-sm font-medium text-gray-700">
+                Converted data ({tableData.rows.length} rows)
+              </p>
             </div>
-            <div>
-              <label
-                htmlFor="marginCategory"
-                className="block text-sm text-gray-700 mb-1.5"
-              >
-                Required Margin Categories
-              </label>
-              <div className="relative">
-                <select
-                  id="marginCategory"
-                  value={marginCategory}
-                  onChange={(e) => setMarginCategory(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-amber-200 rounded-md text-sm appearance-none focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors"
-                >
-                  <option value="standard">Standard (15%)</option>
-                  <option value="premium">Premium (20%)</option>
-                  <option value="economy">Economy (10%)</option>
-                </select>
-                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              </div>
+            <div className="overflow-auto max-h-[60vh]">
+              <table className="w-full min-w-[600px] text-sm border-collapse">
+                <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
+                  <tr>
+                    {tableData.headers.map((h) => (
+                      <th
+                        key={h}
+                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                      >
+                        {tableData.labels?.[h] ?? h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {tableData.rows.map((row, rIdx) => (
+                    <tr key={rIdx} className="hover:bg-gray-50">
+                      {tableData.headers.map((key) => (
+                        <td
+                          key={key}
+                          className="px-3 py-2 text-gray-900 whitespace-nowrap max-w-[280px] truncate"
+                          title={String(row[key] ?? '')}
+                        >
+                          {String(row[key] ?? '')}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-between">

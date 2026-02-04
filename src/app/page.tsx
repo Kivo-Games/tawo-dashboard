@@ -2,6 +2,7 @@
 
 import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
+import { useRouter } from 'next/navigation';
 
 const UPLOAD_API_URL = '/api/upload-gaeb';
 const SUPPORTED_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.p81'];
@@ -121,10 +122,12 @@ function toTableData(data: unknown): { headers: string[]; rows: Record<string, s
   return null;
 }
 
+const REVIEW_STORAGE_KEY = 'tawo_review_data';
+
 export default function CreateProjectPage() {
+  const router = useRouter();
   const [projectName, setProjectName] = useState('');
   const [margin, setMargin] = useState('15,0');
-  const [context, setContext] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
   const [uploadMessage, setUploadMessage] = useState('');
@@ -164,6 +167,22 @@ export default function CreateProjectPage() {
         setUploadMessage(`File "${file.name}" uploaded successfully!`);
         const parsed = toTableData(responseData);
         setTableData(parsed);
+        if (parsed && (parsed.headers.length > 0 || parsed.rows.length > 0)) {
+          try {
+            sessionStorage.setItem(
+              REVIEW_STORAGE_KEY,
+              JSON.stringify({
+                tableData: parsed,
+                projectName,
+                margin,
+                fileName: file.name,
+              })
+            );
+            router.push('/review');
+          } catch {
+            // sessionStorage full or unavailable, stay on page
+          }
+        }
       } else {
         const errorMsg =
           responseData && typeof responseData === 'object' && 'error' in responseData && typeof responseData.error === 'string'
@@ -363,78 +382,6 @@ export default function CreateProjectPage() {
               </div>
             </div>
 
-            {/* Parsed GAEB data table */}
-            {uploadStatus === 'success' && tableData && (tableData.headers.length > 0 || tableData.rows.length > 0) && (
-              <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Converted data ({tableData.rows.length} rows)
-                </label>
-                <div className="border border-gray-200 rounded-lg overflow-hidden overflow-x-auto">
-                  <table className="w-full min-w-[600px] text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        {tableData.headers.map((h) => (
-                          <th
-                            key={h}
-                            className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
-                          >
-                            {tableData.labels?.[h] ?? h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {tableData.rows.map((row, rIdx) => (
-                        <tr key={rIdx} className="hover:bg-gray-50">
-                          {tableData.headers.map((key) => (
-                            <td key={key} className="px-3 py-2 text-gray-900 max-w-xs truncate" title={String(row[key] ?? '')}>
-                              {String(row[key] ?? '')}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Additional Context & Instructions */}
-            <div>
-              <label
-                htmlFor="context"
-                className="block text-sm font-medium text-gray-700 mb-1.5"
-              >
-                Additional Context & Instructions
-              </label>
-              <textarea
-                id="context"
-                value={context}
-                onChange={(e) => setContext(e.target.value)}
-                rows={4}
-                placeholder="Add any specific instructions, notes, or context for this project..."
-                className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm placeholder:text-gray-400 focus:outline-none focus:border-gray-900 focus:ring-1 focus:ring-gray-900 transition-colors resize-none"
-              />
-              <p className="mt-1.5 text-xs text-gray-500">
-                Optional notes or instructions for processing this project
-              </p>
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-3 pt-4">
-              <button
-                type="button"
-                className="px-4 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
-              >
-                Save as Draft
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-              >
-                Continue to Review
-              </button>
-            </div>
           </form>
         </div>
       </div>
