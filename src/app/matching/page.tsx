@@ -27,6 +27,15 @@ const COMPACT_COLUMN_KEYS = new Set([
 
 const LONG_TEXT_COLUMN_WIDTH = 220;
 
+/** Extra columns shown only on Matching page; empty until data is sent back. */
+const MATCHING_EXTRA_COLUMNS: { key: string; label: string }[] = [
+  { key: 'mengeH', label: 'Menge (h)' },
+  { key: 'lohnH', label: 'Lohn (h)' },
+  { key: 'lohnkosten', label: 'Lohnkosten' },
+  { key: 'materialkosten', label: 'Materialkosten' },
+  { key: 'gesamtkosten', label: 'Gesamtkosten' },
+];
+
 const WEBHOOK_URLS = [
   'https://tawo.app.n8n.cloud/webhook/87040d37-7862-4840-b723-1c156c00b2d4',
   'https://tawo.app.n8n.cloud/webhook-test/87040d37-7862-4840-b723-1c156c00b2d4',
@@ -203,6 +212,9 @@ export default function MatchingPage() {
                       }
                     />
                   ))}
+                  {MATCHING_EXTRA_COLUMNS.map((c) => (
+                    <col key={c.key} style={{ width: 90 }} />
+                  ))}
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   <tr>
@@ -214,6 +226,14 @@ export default function MatchingPage() {
                         } ${h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
                       >
                         {tableData.labels?.[h] ?? h}
+                      </th>
+                    ))}
+                    {MATCHING_EXTRA_COLUMNS.map((c) => (
+                      <th
+                        key={c.key}
+                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[90px]"
+                      >
+                        {c.label}
                       </th>
                     ))}
                   </tr>
@@ -263,6 +283,19 @@ export default function MatchingPage() {
                             </td>
                           );
                         })}
+                        {/* Extra columns: loading spinner until data sent, then empty */}
+                        {MATCHING_EXTRA_COLUMNS.map((c) => (
+                          <td
+                            key={c.key}
+                            className="px-3 py-2 text-gray-500 align-top w-[90px] text-right"
+                          >
+                            {webhookStatus === 'sending' ? (
+                              <Loader2 className="w-4 h-4 text-gray-400 animate-spin inline-block" />
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        ))}
                       </tr>
                     );
                   })}
@@ -270,7 +303,7 @@ export default function MatchingPage() {
                   {webhookStatus === 'sending' && (
                     <tr className="bg-gray-50 border-t-2 border-gray-200">
                       <td
-                        colSpan={tableData.headers.length}
+                        colSpan={tableData.headers.length + MATCHING_EXTRA_COLUMNS.length}
                         className="px-4 py-4 text-center text-sm text-gray-600"
                       >
                         <div className="flex items-center justify-center gap-3">
@@ -283,7 +316,7 @@ export default function MatchingPage() {
                   {webhookStatus === 'done' && (
                     <tr className="bg-green-50 border-t border-gray-200">
                       <td
-                        colSpan={tableData.headers.length}
+                        colSpan={tableData.headers.length + MATCHING_EXTRA_COLUMNS.length}
                         className="px-4 py-3 text-center text-sm text-green-700"
                       >
                         Gesendet.
@@ -293,7 +326,7 @@ export default function MatchingPage() {
                   {webhookStatus === 'error' && (
                     <tr className="bg-red-50 border-t border-gray-200">
                       <td
-                        colSpan={tableData.headers.length}
+                        colSpan={tableData.headers.length + MATCHING_EXTRA_COLUMNS.length}
                         className="px-4 py-3 text-center text-sm text-red-700"
                       >
                         Fehler beim Senden. Bitte erneut versuchen.
