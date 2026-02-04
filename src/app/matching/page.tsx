@@ -2,10 +2,18 @@
 
 import { ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 const EXPAND_THRESHOLD = 35;
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
+const MATCHING_SENT_KEY = 'tawo_matching_sent';
+
+/** Stable key for current dataset so we don't resend on revisit. */
+function getMatchingSentKey(data: ReviewData): string {
+  const rows = data?.tableData?.rows;
+  const firstId = rows?.[0]?.['id'] ?? '';
+  return `${data.fileName ?? ''}-${rows?.length ?? 0}-${firstId}`;
+}
 
 const COMPACT_COLUMN_KEYS = new Set([
   'type',
@@ -42,7 +50,6 @@ export default function MatchingPage() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [statsVisible, setStatsVisible] = useState(true);
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
-  const webhookFired = useRef(false);
 
   const isRowExpanded = (rIdx: number) => expandedRows.has(rIdx);
   const isLong = (text: string) => text.length > EXPAND_THRESHOLD;
@@ -77,12 +84,19 @@ export default function MatchingPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Fire webhooks when we have data (once)
+  // Fire webhooks when we have data (once per dataset; persist so revisit doesn't resend)
   useEffect(() => {
-    if (!reviewData?.tableData?.rows?.length || webhookFired.current) return;
-    webhookFired.current = true;
-    setWebhookStatus('sending');
+    if (!reviewData?.tableData?.rows?.length) return;
 
+    const sentKey = getMatchingSentKey(reviewData);
+    const alreadySent = typeof window !== 'undefined' && sessionStorage.getItem(MATCHING_SENT_KEY) === sentKey;
+
+    if (alreadySent) {
+      setWebhookStatus('done');
+      return;
+    }
+
+    setWebhookStatus('sending');
     const payload = { rows: reviewData.tableData.rows };
 
     const run = async () => {
@@ -98,6 +112,9 @@ export default function MatchingPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
+        try {
+          sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
+        } catch {}
         setWebhookStatus('done');
       } catch {
         setWebhookStatus('error');
