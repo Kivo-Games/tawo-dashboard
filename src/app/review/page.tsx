@@ -130,6 +130,16 @@ export default function ReviewPage() {
           </div>
         </div>
 
+        {/* Matching Button */}
+        <div className="flex justify-end mb-6">
+          <Link
+            href="/matching"
+            className="inline-flex px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+          >
+            Matching-Prozess starten →
+          </Link>
+        </div>
+
         {/* Data Table */}
         {tableData.headers.length > 0 && tableData.rows.length > 0 && (
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
@@ -239,18 +249,12 @@ export default function ReviewPage() {
         )}
 
         {/* Bottom Actions */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-start">
           <Link
             href="/"
             className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
           >
             ← Zurück zum Upload
-          </Link>
-          <Link
-            href="/matching"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-          >
-            Matching-Prozess starten →
           </Link>
         </div>
       </div>
