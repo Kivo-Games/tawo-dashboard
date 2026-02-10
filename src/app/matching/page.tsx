@@ -3,6 +3,13 @@
 import { ChevronDown, ChevronUp, Loader2, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import {
+  COMPACT_COLUMN_KEYS,
+  TEXT_COLUMN_KEYS,
+  MATCHING_SECTION_KEYS,
+  getGroupHeaders,
+  getKfeSubgroupHeaders,
+} from '@/lib/table-columns';
 
 const EXPAND_THRESHOLD = 35;
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
@@ -15,27 +22,9 @@ function getMatchingSentKey(data: ReviewData): string {
   return `${data.fileName ?? ''}-${rows?.length ?? 0}-${firstId}`;
 }
 
-const COMPACT_COLUMN_KEYS = new Set([
-  'type',
-  'rNoPart',
-  'pathNumbers',
-  'qty',
-  'unit',
-  'ctlgId',
-  'ctlgCode',
-]);
-
-/** Fixed width for Short text and Long text columns (equal). */
-const TEXT_COLUMN_WIDTH = 220;
-
-/** Extra columns shown only on Matching page; empty until data is sent back. */
-const MATCHING_EXTRA_COLUMNS: { key: string; label: string }[] = [
-  { key: 'mengeH', label: 'Menge (h)' },
-  { key: 'lohnH', label: 'Lohn (h)' },
-  { key: 'lohnkosten', label: 'Lohnkosten' },
-  { key: 'materialkosten', label: 'Materialkosten' },
-  { key: 'gesamtkosten', label: 'Gesamtkosten' },
-];
+const COL_MIN_COMPACT = 36;
+const COL_MIN_TEXT = 72;
+const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 
@@ -221,7 +210,7 @@ export default function MatchingPage() {
           </div>
         </div>
 
-        {/* Data Table (same as Review) */}
+        {/* Data Table (same structure as Review + group headers; spinner in Technische Einschätzung & KFE/DF columns) */}
         {tableData.headers.length > 0 && tableData.rows.length > 0 && (
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -229,44 +218,42 @@ export default function MatchingPage() {
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
             </div>
-            <div className="overflow-auto max-h-[60vh] w-full">
-              <table className="w-full text-sm border-collapse table-auto">
+            <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
+              <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed', minWidth: 0 }}>
                 <colgroup>
                   {tableData.headers.map((h) => (
                     <col
                       key={h}
-                      className={COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : undefined}
-                      style={
-                        COMPACT_COLUMN_KEYS.has(h)
-                          ? { width: '1%' }
-                          : h === 'pathLabels' || h === 'shortText' || h === 'longText'
-                          ? { width: TEXT_COLUMN_WIDTH }
-                          : undefined
-                      }
+                      style={{
+                        minWidth: COMPACT_COLUMN_KEYS.has(h) ? COL_MIN_COMPACT : TEXT_COLUMN_KEYS.has(h) ? COL_MIN_TEXT : COL_MIN_DEFAULT,
+                      }}
                     />
-                  ))}
-                  {MATCHING_EXTRA_COLUMNS.map((c) => (
-                    <col key={c.key} style={{ width: 90 }} />
                   ))}
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   <tr>
+                    {getGroupHeaders().map((g, i) => (
+                      <th key={i} colSpan={g.colspan} className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 last:border-r-0">
+                        {g.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th colSpan={11} className="px-2 py-0 border-r border-gray-200 bg-gray-50/80" />
+                    <th colSpan={3} className="px-2 py-0 border-r border-gray-200 bg-gray-50/80" />
+                    {getKfeSubgroupHeaders().map((sg, i) => (
+                      <th key={i} colSpan={sg.colspan} className="px-2 py-1 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0 bg-gray-50/80">
+                        {sg.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
                     {tableData.headers.map((h) => (
                       <th
                         key={h}
-                        className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                          COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : ''
-                        } ${h === 'pathLabels' || h === 'shortText' || h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
+                        className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0"
                       >
                         {tableData.labels?.[h] ?? h}
-                      </th>
-                    ))}
-                    {MATCHING_EXTRA_COLUMNS.map((c) => (
-                      <th
-                        key={c.key}
-                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap w-[90px]"
-                      >
-                        {c.label}
                       </th>
                     ))}
                   </tr>
@@ -275,90 +262,66 @@ export default function MatchingPage() {
                   {tableData.rows.map((row, rIdx) => {
                     const rowExpanded = isRowExpanded(rIdx);
                     const remarkRow = isRemarkRow(row);
+                    const isThisRowSending = sendingRowIndex === rIdx;
                     return (
                       <tr
                         key={rIdx}
                         className={`${remarkRow ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'}`}
                       >
                         {tableData.headers.map((key) => {
-                          const text = String(row[key] ?? '');
-                          const long = isLong(text);
+                          const isMatchingCol = MATCHING_SECTION_KEYS.has(key);
+                          const showSpinner = isMatchingCol && isThisRowSending;
+                          const text = showSpinner ? '' : String(row[key] ?? '');
+                          const long = !showSpinner && isLong(text);
                           return (
                             <td
                               key={key}
-                              className={`group px-3 py-2 text-gray-900 align-top transition-colors ${
+                              className={`group px-2 py-1.5 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
-                              } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''} ${
-                                key === 'pathLabels' || key === 'shortText' || key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
                               title={rowExpanded ? undefined : text}
+                              style={{ minWidth: 0 }}
                             >
-                              <div className="flex items-start justify-between gap-2 min-w-0">
-                                <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
-                                  {text || '—'}
-                                </span>
-                                <div className="flex items-center gap-0.5 flex-shrink-0">
-                                  {long && key !== 'id' ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => toggleExpandRow(rIdx)}
-                                      className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
-                                      title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
-                                      aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
-                                    >
-                                      {rowExpanded ? (
-                                        <ChevronUp className="w-3.5 h-3.5" />
-                                      ) : (
-                                        <ChevronDown className="w-3.5 h-3.5" />
-                                      )}
-                                    </button>
-                                  ) : null}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCopyCell(text, rIdx, key)}
-                                    className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
-                                    title="In Zwischenablage kopieren"
-                                    aria-label="Copy"
-                                  >
-                                    {copiedCellId === copyCellId(rIdx, key) ? (
-                                      <Check className="w-3.5 h-3.5 text-green-600" />
-                                    ) : (
-                                      <Copy className="w-3.5 h-3.5" />
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            </td>
-                          );
-                        })}
-                        {/* Extra columns: spinner only on the row currently being sent */}
-                        {MATCHING_EXTRA_COLUMNS.map((c) => {
-                          const isThisRowSending = sendingRowIndex === rIdx;
-                          const extraText = isThisRowSending ? '' : '—';
-                          return (
-                            <td
-                              key={c.key}
-                              className={`group px-3 py-2 text-gray-500 align-top w-[90px] text-right transition-colors hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
-                            >
-                              <div className="flex items-center justify-end gap-1 min-w-0">
-                                {isThisRowSending ? (
+                              <div className="flex items-start justify-between gap-1 min-w-0">
+                                {showSpinner ? (
                                   <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
                                 ) : (
-                                  <span>—</span>
+                                  <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
+                                    {text || '—'}
+                                  </span>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyCell(extraText, rIdx, `extra-${c.key}`)}
-                                  className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-opacity opacity-0 group-hover:opacity-100 flex-shrink-0"
-                                  title="In Zwischenablage kopieren"
-                                  aria-label="Copy"
-                                >
-                                  {copiedCellId === copyCellId(rIdx, `extra-${c.key}`) ? (
-                                    <Check className="w-3.5 h-3.5 text-green-600" />
-                                  ) : (
-                                    <Copy className="w-3.5 h-3.5" />
-                                  )}
-                                </button>
+                                {!showSpinner && (
+                                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                                    {long && key !== 'id' ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleExpandRow(rIdx)}
+                                        className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
+                                        title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
+                                        aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
+                                      >
+                                        {rowExpanded ? (
+                                          <ChevronUp className="w-3.5 h-3.5" />
+                                        ) : (
+                                          <ChevronDown className="w-3.5 h-3.5" />
+                                        )}
+                                      </button>
+                                    ) : null}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyCell(text, rIdx, key)}
+                                      className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
+                                      title="In Zwischenablage kopieren"
+                                      aria-label="Copy"
+                                    >
+                                      {copiedCellId === copyCellId(rIdx, key) ? (
+                                        <Check className="w-3.5 h-3.5 text-green-600" />
+                                      ) : (
+                                        <Copy className="w-3.5 h-3.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           );
@@ -366,11 +329,10 @@ export default function MatchingPage() {
                       </tr>
                     );
                   })}
-                  {/* Loading row – shown while webhooks are in flight */}
                   {webhookStatus === 'sending' && (
                     <tr className="bg-gray-50 border-t-2 border-gray-200">
                       <td
-                        colSpan={tableData.headers.length + MATCHING_EXTRA_COLUMNS.length}
+                        colSpan={tableData.headers.length}
                         className="px-4 py-4 text-center text-sm text-gray-600"
                       >
                         <div className="flex items-center justify-center gap-3">
@@ -382,20 +344,14 @@ export default function MatchingPage() {
                   )}
                   {webhookStatus === 'done' && (
                     <tr className="bg-green-50 border-t border-gray-200">
-                      <td
-                        colSpan={tableData.headers.length + MATCHING_EXTRA_COLUMNS.length}
-                        className="px-4 py-3 text-center text-sm text-green-700"
-                      >
+                      <td colSpan={tableData.headers.length} className="px-4 py-3 text-center text-sm text-green-700">
                         Gesendet.
                       </td>
                     </tr>
                   )}
                   {webhookStatus === 'error' && (
                     <tr className="bg-red-50 border-t border-gray-200">
-                      <td
-                        colSpan={tableData.headers.length + MATCHING_EXTRA_COLUMNS.length}
-                        className="px-4 py-3 text-center text-sm text-red-700"
-                      >
+                      <td colSpan={tableData.headers.length} className="px-4 py-3 text-center text-sm text-red-700">
                         Fehler beim Senden. Bitte erneut versuchen.
                       </td>
                     </tr>

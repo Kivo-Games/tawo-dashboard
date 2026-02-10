@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const MATCHING_WEBHOOK_PRODUCTION =
-  'https://tawo.app.n8n.cloud/webhook-test/87040d37-7862-4840-b723-1c156c00b2d4';
+  'https://tawo.app.n8n.cloud/webhook/87040d37-7862-4840-b723-1c156c00b2d4';
 
 export async function POST(request: NextRequest) {
   try {

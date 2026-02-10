@@ -3,24 +3,22 @@
 import { FileText, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import {
+  TABLE_COLUMNS,
+  COMPACT_COLUMN_KEYS,
+  TEXT_COLUMN_KEYS,
+  getGroupHeaders,
+  getKfeSubgroupHeaders,
+} from '@/lib/table-columns';
 
-const EXPAND_THRESHOLD = 35; // show expand icon when content length exceeds this
+const EXPAND_THRESHOLD = 35;
 
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 
-/** Column keys that should be content-fitted (narrow); the rest share remaining width. */
-const COMPACT_COLUMN_KEYS = new Set([
-  'type',
-  'rNoPart',
-  'pathNumbers',
-  'qty',
-  'unit',
-  'ctlgId',
-  'ctlgCode',
-]);
-
-/** Fixed width for Short text and Long text columns (equal, not content-dependent). */
-const TEXT_COLUMN_WIDTH = 220;
+/** Min width so table fits without horizontal scroll at start (compact and text columns). */
+const COL_MIN_COMPACT = 36;
+const COL_MIN_TEXT = 72;
+const COL_MIN_DEFAULT = 56;
 
 type TableData = {
   headers: string[];
@@ -138,31 +136,40 @@ export default function ReviewPage() {
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
             </div>
-            <div className="overflow-auto max-h-[60vh] w-full">
-              <table className="w-full text-sm border-collapse table-auto">
+            <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
+              <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed', minWidth: 0 }}>
                 <colgroup>
                   {tableData.headers.map((h) => (
                     <col
                       key={h}
-                      className={COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : undefined}
-                      style={
-                        COMPACT_COLUMN_KEYS.has(h)
-                          ? { width: '1%' }
-                          : h === 'pathLabels' || h === 'shortText' || h === 'longText'
-                          ? { width: TEXT_COLUMN_WIDTH }
-                          : undefined
-                      }
+                      style={{
+                        minWidth: COMPACT_COLUMN_KEYS.has(h) ? COL_MIN_COMPACT : TEXT_COLUMN_KEYS.has(h) ? COL_MIN_TEXT : COL_MIN_DEFAULT,
+                      }}
                     />
                   ))}
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   <tr>
+                    {getGroupHeaders().map((g, i) => (
+                      <th key={i} colSpan={g.colspan} className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 last:border-r-0">
+                        {g.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    <th colSpan={11} className="px-2 py-0 border-r border-gray-200 bg-gray-50/80" />
+                    <th colSpan={3} className="px-2 py-0 border-r border-gray-200 bg-gray-50/80" />
+                    {getKfeSubgroupHeaders().map((sg, i) => (
+                      <th key={i} colSpan={sg.colspan} className="px-2 py-1 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0 bg-gray-50/80">
+                        {sg.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
                     {tableData.headers.map((h) => (
                       <th
                         key={h}
-                        className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap ${
-                          COMPACT_COLUMN_KEYS.has(h) ? 'w-px' : ''
-                        } ${h === 'pathLabels' || h === 'shortText' || h === 'longText' ? 'w-[220px] max-w-[220px]' : ''}`}
+                        className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0"
                       >
                         {tableData.labels?.[h] ?? h}
                       </th>
@@ -184,14 +191,13 @@ export default function ReviewPage() {
                           return (
                             <td
                               key={key}
-                              className={`group px-3 py-2 text-gray-900 align-top transition-colors ${
+                              className={`group px-2 py-1.5 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
-                              } ${COMPACT_COLUMN_KEYS.has(key) ? 'w-px' : ''} ${
-                                key === 'pathLabels' || key === 'shortText' || key === 'longText' ? 'w-[220px] max-w-[220px]' : ''
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
                               title={rowExpanded ? undefined : text}
+                              style={{ minWidth: 0 }}
                             >
-                              <div className="flex items-start justify-between gap-2 min-w-0">
+                              <div className="flex items-start justify-between gap-1 min-w-0">
                                 <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
                                   {text || '—'}
                                 </span>

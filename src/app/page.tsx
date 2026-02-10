@@ -3,6 +3,11 @@
 import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { useState, useRef, DragEvent, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import {
+  TABLE_HEADER_KEYS,
+  TABLE_LABELS,
+  HEADER_TO_KEY,
+} from '@/lib/table-columns';
 
 const UPLOAD_API_URL = '/api/upload-gaeb';
 const SUPPORTED_EXTENSIONS = ['.x81', '.x82', '.x83', '.d81', '.p81'];
@@ -44,80 +49,60 @@ function parseCsv(csv: string): { headers: string[]; rows: string[][] } {
   return { headers, rows };
 }
 
-/** Known GAEB line-item columns (fixed order + optional display labels). */
-const GAEB_TABLE_COLUMNS: { key: string; label: string }[] = [
-  { key: 'type', label: 'Type' },
-  { key: 'rNoPart', label: 'Part no.' },
-  { key: 'pathNumbers', label: 'Path' },
-  { key: 'pathLabels', label: 'Path labels' },
-  { key: 'qty', label: 'Qty' },
-  { key: 'unit', label: 'Unit' },
-  { key: 'shortText', label: 'Short text' },
-  { key: 'longText', label: 'Long text' },
-  { key: 'ctlgId', label: 'Catalog ID' },
-  { key: 'ctlgCode', label: 'Catalog code' },
-  { key: 'id', label: 'ID' },
-];
-
-function isGaebLineItemArray(data: unknown): data is Record<string, unknown>[] {
-  if (!Array.isArray(data) || data.length === 0) return false;
-  const first = data[0];
-  if (typeof first !== 'object' || first === null) return false;
-  const keys = Object.keys(first);
-  return GAEB_TABLE_COLUMNS.every((c) => keys.includes(c.key));
+/** Normalize a raw row (from API/CSV) into our table row shape (TABLE_HEADER_KEYS + id). */
+function normalizeRow(
+  raw: Record<string, unknown> | null,
+  headerToKeyMap?: Record<string, string>
+): Record<string, string> {
+  const o: Record<string, string> = {};
+  const map = headerToKeyMap ?? HEADER_TO_KEY;
+  TABLE_HEADER_KEYS.forEach((key) => {
+    o[key] = String(raw?.[key] ?? '');
+  });
+  if (raw && typeof raw.id !== 'undefined') o['id'] = String(raw.id);
+  else if (raw && typeof raw.Id !== 'undefined') o['id'] = String(raw.Id);
+  else o['id'] = '';
+  if (raw && typeof raw === 'object') {
+    Object.keys(raw).forEach((h) => {
+      const key = map[h] ?? map[h.toLowerCase()];
+      if (key && TABLE_HEADER_KEYS.includes(key))
+        o[key] = String((raw as Record<string, unknown>)[h] ?? '');
+    });
+  }
+  return o;
 }
 
-/** Normalize API response into table shape: { headers, rows } (rows as objects by header). */
+/** Normalize API response into table shape: { headers, rows, labels } using shared column config. */
 function toTableData(data: unknown): { headers: string[]; rows: Record<string, string>[]; labels?: Record<string, string> } | null {
   if (data == null) return null;
+  const headers = TABLE_HEADER_KEYS;
+  const labels = TABLE_LABELS;
+
   if (Array.isArray(data)) {
-    if (data.length === 0) return { headers: [], rows: [] };
-    const first = data[0];
-    let headers: string[];
-    const labels: Record<string, string> = {};
-    if (isGaebLineItemArray(data)) {
-      headers = GAEB_TABLE_COLUMNS.map((c) => c.key);
-      GAEB_TABLE_COLUMNS.forEach((c) => { labels[c.key] = c.label; });
-    } else {
-      headers = typeof first === 'object' && first !== null ? Object.keys(first as object) : [];
-    }
-    const rows = data.map((row) => {
-      const o: Record<string, string> = {};
-      if (typeof row === 'object' && row !== null) {
-        const keys = headers.length ? headers : Object.keys(row as object);
-        keys.forEach((k) => {
-          o[k] = String((row as Record<string, unknown>)[k] ?? '');
-        });
-      }
-      return o;
-    });
-    return labels && Object.keys(labels).length ? { headers, rows, labels } : { headers, rows };
+    if (data.length === 0) return { headers, rows: [], labels };
+    const rows = data.map((row) =>
+      normalizeRow(typeof row === 'object' && row !== null ? (row as Record<string, unknown>) : null)
+    );
+    return { headers, rows, labels };
   }
   if (typeof data === 'object' && data !== null && 'message' in data && typeof (data as { message: string }).message === 'string') {
     const csv = (data as { message: string }).message;
     if (/[\n,"]/.test(csv)) {
-      const { headers, rows } = parseCsv(csv);
-      return {
-        headers,
-        rows: rows.map((r) => {
-          const o: Record<string, string> = {};
-          headers.forEach((h, i) => { o[h] = r[i] ?? ''; });
-          return o;
-        }),
-      };
+      const { headers: csvHeaders, rows: csvRows } = parseCsv(csv);
+      const rows = csvRows.map((r) => {
+        const raw: Record<string, unknown> = {};
+        csvHeaders.forEach((h, i) => {
+          raw[h] = r[i] ?? '';
+        });
+        return normalizeRow(raw);
+      });
+      return { headers, rows, labels };
     }
   }
   if (typeof data === 'object' && data !== null && 'rows' in data && Array.isArray((data as { rows: unknown }).rows)) {
-    const { rows, headers } = data as { rows: Record<string, unknown>[]; headers?: string[] };
-    const h = headers?.length ? headers : (rows[0] ? Object.keys(rows[0]) : []);
-    return {
-      headers: h,
-      rows: rows.map((r) => {
-        const o: Record<string, string> = {};
-        h.forEach((k) => { o[k] = String(r[k] ?? ''); });
-        return o;
-      }),
-    };
+    const { rows: rawRows } = data as { rows: Record<string, unknown>[] };
+    const rows = rawRows.map((r) => normalizeRow(r));
+    return { headers, rows, labels };
   }
   return null;
 }
