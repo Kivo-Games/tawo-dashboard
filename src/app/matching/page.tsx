@@ -7,7 +7,6 @@ import {
   COMPACT_COLUMN_KEYS,
   TEXT_COLUMN_KEYS,
   KFE_MEDIUM_COLUMN_KEYS,
-  KFE_FOCUS_COLUMN_KEYS,
   MATCHING_SECTION_KEYS,
   getGroupHeaders,
   getKfeSubgroupHeaders,
@@ -256,23 +255,20 @@ export default function MatchingPage() {
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
             </div>
-            <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
-              <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed', minWidth: 0 }}>
+            <div className="overflow-auto max-h-[60vh] w-full" style={{ overflowX: 'auto' }}>
+              <table className="text-sm border-collapse table-auto" style={{ minWidth: 'max-content' }}>
                 <colgroup>
-                  {tableData.headers.map((h) => (
-                    <col
-                      key={h}
-                      style={{
-                        minWidth: COMPACT_COLUMN_KEYS.has(h)
-                          ? COL_MIN_COMPACT
-                          : TEXT_COLUMN_KEYS.has(h)
-                            ? TEXT_COLUMN_WIDTH
-                            : KFE_MEDIUM_COLUMN_KEYS.has(h)
-                              ? KFE_MEDIUM_WIDTH
-                              : COL_MIN_DEFAULT,
-                      }}
-                    />
-                  ))}
+                  {tableData.headers.map((h) => {
+                    const w =
+                      COMPACT_COLUMN_KEYS.has(h)
+                        ? COL_MIN_COMPACT
+                        : TEXT_COLUMN_KEYS.has(h)
+                          ? TEXT_COLUMN_WIDTH
+                          : KFE_MEDIUM_COLUMN_KEYS.has(h)
+                            ? KFE_MEDIUM_WIDTH
+                            : COL_MIN_DEFAULT;
+                    return <col key={h} style={{ width: w, minWidth: w }} />;
+                  })}
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   {/* Row 1: group headings – LV, Technische Einschätzung, KFE / DF */}
@@ -283,23 +279,22 @@ export default function MatchingPage() {
                       </th>
                     ))}
                   </tr>
-                  {/* Row 2: subgroup headings under KFE/DF only; LV and Technische Einschätzung get empty cells */}
+                  {/* Row 2: subgroup headings – no background; LV and Technische Einschätzung empty */}
                   <tr>
                     <th colSpan={11} className="px-3 py-0 border-r border-gray-200 bg-gray-50/80" />
                     <th colSpan={3} className="px-3 py-0 border-r border-gray-200 bg-gray-50/80" />
                     {getKfeSubgroupHeaders().map((sg, i) => (
-                      <th key={i} colSpan={sg.colspan} className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0 bg-amber-50/70">
+                      <th key={i} colSpan={sg.colspan} className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0">
                         {sg.label}
                       </th>
                     ))}
                   </tr>
+                  {/* Row 3: column names for all 21 columns */}
                   <tr>
                     {tableData.headers.map((h) => (
                       <th
                         key={h}
-                        className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0 ${
-                          KFE_FOCUS_COLUMN_KEYS.has(h) ? 'bg-amber-50/70' : ''
-                        }`}
+                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0"
                       >
                         {tableData.labels?.[h] ?? h}
                       </th>
@@ -339,7 +334,7 @@ export default function MatchingPage() {
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''} ${
                                 isFirstCol && remarkRow ? 'border-l-2 border-gray-400' : ''
-                              } ${KFE_FOCUS_COLUMN_KEYS.has(key) ? 'bg-amber-50/50' : ''}`}
+                              }`}
                               title={rowExpanded ? undefined : text}
                               style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
                             >
