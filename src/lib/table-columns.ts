@@ -68,10 +68,6 @@ export const COMPACT_COLUMN_KEYS = new Set([
   'rNoPart',
   'qty',
   'unit',
-  'kfeDfId',
-  'kfeDfZeit',
-  'kfeFalschGrund',
-  'kfeFit',
 ]);
 
 /** Keys for text columns that get a max width (Kurztext, Langtext, KFE text columns). */
@@ -83,6 +79,20 @@ export const TEXT_COLUMN_KEYS = new Set([
   'kfeFitLangtext',
 ]);
 
+/** KFE columns that are main focus on matching (non-text): get medium width so they’re readable. */
+export const KFE_MEDIUM_COLUMN_KEYS = new Set([
+  'kfeDfId',
+  'kfeDfZeit',
+  'kfeFalschGrund',
+  'kfeFit',
+]);
+
+/** All 7 KFE/DF columns – main focus on matching page alongside text columns. */
+export const KFE_FOCUS_COLUMN_KEYS = new Set([
+  ...KFE_DF_COLUMNS.map((c) => c.key),
+  ...KFE_KIT_COLUMNS.map((c) => c.key),
+]);
+
 /** Column keys for "matching" section (Technische Einschätzung + KFE/DF) – show spinner here on matching page. */
 export const MATCHING_SECTION_KEYS = new Set([
   ...TECH_COLUMNS.map((c) => c.key),
@@ -90,24 +100,32 @@ export const MATCHING_SECTION_KEYS = new Set([
   ...KFE_KIT_COLUMNS.map((c) => c.key),
 ]);
 
-/** Group info for thead: group label and colspan. */
+/** LV only (for Review page). */
+export const LV_HEADER_KEYS = LV_COLUMNS.map((c) => c.key);
+
+/** Group info for thead: label and colspan (no "Group" prefix). */
 export type GroupHeader = { label: string; colspan: number; subgroup?: string };
 export function getGroupHeaders(): GroupHeader[] {
   return [
-    { label: 'Group: LV', colspan: LV_COLUMNS.length },
-    { label: 'Group: Technische Einschätzung', colspan: TECH_COLUMNS.length },
+    { label: 'LV', colspan: LV_COLUMNS.length },
+    { label: 'Technische Einschätzung', colspan: TECH_COLUMNS.length },
     {
-      label: 'Group: KFE / DF',
+      label: 'KFE / DF',
       colspan: KFE_DF_COLUMNS.length + KFE_KIT_COLUMNS.length,
     },
   ];
 }
 
-/** Subgroup headers for KFE/DF (Deal Fusion Match, KFE Kit). */
+/** Single group header for Review (LV only). */
+export function getReviewGroupHeaders(): GroupHeader[] {
+  return [{ label: 'LV', colspan: LV_COLUMNS.length }];
+}
+
+/** Subgroup headers for KFE/DF: Deal Fusion Match, KFE Kit (no "Subgroup" prefix). */
 export function getKfeSubgroupHeaders(): { label: string; colspan: number }[] {
   return [
-    { label: 'Subgroup 1: Deal Fusion Match', colspan: KFE_DF_COLUMNS.length },
-    { label: 'Subgroup 2: KFE Kit', colspan: KFE_KIT_COLUMNS.length },
+    { label: 'Deal Fusion Match', colspan: KFE_DF_COLUMNS.length },
+    { label: 'KFE Kit', colspan: KFE_KIT_COLUMNS.length },
   ];
 }
 

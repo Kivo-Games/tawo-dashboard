@@ -4,24 +4,25 @@ import { FileText, ChevronDown, ChevronUp, ChevronRight, Copy, Check } from 'luc
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
 import {
+  LV_HEADER_KEYS,
   COMPACT_COLUMN_KEYS,
   TEXT_COLUMN_KEYS,
-  getGroupHeaders,
-  getKfeSubgroupHeaders,
+  getReviewGroupHeaders,
   getPathLevel,
   buildSectionStartByRowIndex,
   buildSectionRanges,
   SECTION_INDENT_REMARK_PX,
   SECTION_INDENT_PER_LEVEL_PX,
+  TABLE_LABELS,
 } from '@/lib/table-columns';
 
 const EXPAND_THRESHOLD = 35;
 
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 
-/** Min width so table fits without horizontal scroll at start (compact and text columns). */
+/** Column widths: compact narrow, text columns get more space for wording. */
 const COL_MIN_COMPACT = 36;
-const COL_MIN_TEXT = 72;
+const TEXT_COLUMN_WIDTH = 220;
 const COL_MIN_DEFAULT = 56;
 
 type TableData = {
@@ -161,7 +162,7 @@ export default function ReviewPage() {
           </div>
         </div>
 
-        {/* Data Table */}
+        {/* Data Table – LV columns only, one group heading row */}
         {tableData.headers.length > 0 && tableData.rows.length > 0 && (
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-6">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
@@ -170,41 +171,32 @@ export default function ReviewPage() {
               </p>
             </div>
             <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
-              <table className="w-full text-sm border-collapse" style={{ tableLayout: 'fixed', minWidth: 0 }}>
+              <table className="w-full text-sm border-collapse table-auto">
                 <colgroup>
-                  {tableData.headers.map((h) => (
+                  {LV_HEADER_KEYS.map((h) => (
                     <col
                       key={h}
                       style={{
-                        minWidth: COMPACT_COLUMN_KEYS.has(h) ? COL_MIN_COMPACT : TEXT_COLUMN_KEYS.has(h) ? COL_MIN_TEXT : COL_MIN_DEFAULT,
+                        minWidth: COMPACT_COLUMN_KEYS.has(h) ? COL_MIN_COMPACT : TEXT_COLUMN_KEYS.has(h) ? TEXT_COLUMN_WIDTH : COL_MIN_DEFAULT,
                       }}
                     />
                   ))}
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   <tr>
-                    {getGroupHeaders().map((g, i) => (
-                      <th key={i} colSpan={g.colspan} className="px-2 py-1.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 last:border-r-0">
+                    {getReviewGroupHeaders().map((g, i) => (
+                      <th key={i} colSpan={g.colspan} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 last:border-r-0">
                         {g.label}
                       </th>
                     ))}
                   </tr>
                   <tr>
-                    <th colSpan={11} className="px-2 py-0 border-r border-gray-200 bg-gray-50/80" />
-                    <th colSpan={3} className="px-2 py-0 border-r border-gray-200 bg-gray-50/80" />
-                    {getKfeSubgroupHeaders().map((sg, i) => (
-                      <th key={i} colSpan={sg.colspan} className="px-2 py-1 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0 bg-gray-50/80">
-                        {sg.label}
-                      </th>
-                    ))}
-                  </tr>
-                  <tr>
-                    {tableData.headers.map((h) => (
+                    {LV_HEADER_KEYS.map((h) => (
                       <th
                         key={h}
-                        className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0"
+                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0"
                       >
-                        {tableData.labels?.[h] ?? h}
+                        {TABLE_LABELS[h] ?? tableData.labels?.[h] ?? h}
                       </th>
                     ))}
                   </tr>
@@ -214,7 +206,6 @@ export default function ReviewPage() {
                     const rowExpanded = isRowExpanded(rIdx);
                     const remarkRow = isRemarkRow(row);
                     const hidden = isRowInCollapsedSection(rIdx);
-                    const sectionStart = sectionStartByRow[rIdx];
                     const isSectionHeader = remarkRow && sectionHasChildren(rIdx);
                     const isCollapsed = isSectionHeader && collapsedSections.has(rIdx);
                     const indentPx = remarkRow
@@ -229,18 +220,18 @@ export default function ReviewPage() {
                         }`}
                         onClick={isSectionHeader ? () => toggleSectionCollapsed(rIdx) : undefined}
                       >
-                        {tableData.headers.map((key, colIdx) => {
+                        {LV_HEADER_KEYS.map((key, colIdx) => {
                           const text = String(row[key] ?? '');
                           const long = isLong(text);
                           const isFirstCol = colIdx === 0;
                           return (
                             <td
                               key={key}
-                              className={`group px-2 py-1.5 text-gray-900 align-top transition-colors ${
+                              className={`group px-3 py-2 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''} ${
                                 isFirstCol && remarkRow ? 'border-l-2 border-gray-400' : ''
-                              }`}
+                              } ${TEXT_COLUMN_KEYS.has(key) ? 'max-w-[220px]' : ''}`}
                               title={rowExpanded ? undefined : text}
                               style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
                             >
