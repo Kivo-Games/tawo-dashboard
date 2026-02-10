@@ -153,3 +153,53 @@ TABLE_COLUMNS.forEach((c) => {
   HEADER_TO_KEY[c.key] = c.key;
   HEADER_TO_KEY[c.label.toLowerCase()] = c.key;
 });
+
+// --- Section / REMARK (Hinweis) helpers for GAEB hierarchy ---
+
+/** Path level from Ordnungszahl (e.g. "1.2.3" -> 3, "01.02" -> 2). */
+export function getPathLevel(rNoPart: string): number {
+  const s = String(rNoPart ?? '').trim();
+  if (!s) return 0;
+  const segments = s.split(/[.\s]+/).filter(Boolean);
+  return segments.length;
+}
+
+/** Indent in px: REMARK rows get 0 so they stick out; items get level * indentPerLevel. */
+export const SECTION_INDENT_REMARK_PX = 0;
+export const SECTION_INDENT_PER_LEVEL_PX = 14;
+
+/**
+ * For each row index, the REMARK row index that starts its section (section = from REMARK to next REMARK).
+ * REMARK rows start a section; following rows belong to that section until the next REMARK.
+ */
+export function buildSectionStartByRowIndex(
+  rows: Record<string, string>[],
+  isRemark: (row: Record<string, string>) => boolean
+): number[] {
+  const result: number[] = [];
+  let currentSectionStart = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (isRemark(rows[i])) {
+      currentSectionStart = i;
+    }
+    result[i] = currentSectionStart;
+  }
+  return result;
+}
+
+/** Section boundaries: list of { start, end } (end exclusive) for each REMARK-started section. */
+export function buildSectionRanges(
+  rows: Record<string, string>[],
+  isRemark: (row: Record<string, string>) => boolean
+): { start: number; end: number }[] {
+  const ranges: { start: number; end: number }[] = [];
+  let start = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (isRemark(rows[i])) {
+      if (start >= 0) ranges.push({ start, end: i });
+      start = i;
+    }
+  }
+  if (start >= 0) ranges.push({ start, end: rows.length });
+  return ranges;
+}

@@ -1,14 +1,18 @@
 'use client';
 
-import { FileText, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
+import { FileText, ChevronDown, ChevronUp, ChevronRight, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  TABLE_COLUMNS,
   COMPACT_COLUMN_KEYS,
   TEXT_COLUMN_KEYS,
   getGroupHeaders,
   getKfeSubgroupHeaders,
+  getPathLevel,
+  buildSectionStartByRowIndex,
+  buildSectionRanges,
+  SECTION_INDENT_REMARK_PX,
+  SECTION_INDENT_PER_LEVEL_PX,
 } from '@/lib/table-columns';
 
 const EXPAND_THRESHOLD = 35;
@@ -36,6 +40,7 @@ type ReviewData = {
 export default function ReviewPage() {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
 
   const copyCellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
@@ -59,6 +64,34 @@ export default function ReviewPage() {
     });
   };
   const isRemarkRow = (row: Record<string, string>) => String(row['type'] ?? '').toUpperCase() === 'REMARK';
+
+  const rows = reviewData?.tableData?.rows ?? [];
+  const sectionStartByRow = useMemo(
+    () => buildSectionStartByRowIndex(rows, isRemarkRow),
+    [rows]
+  );
+  const sectionRanges = useMemo(
+    () => buildSectionRanges(rows, isRemarkRow),
+    [rows]
+  );
+  const sectionHasChildren = (remarkRowIndex: number) => {
+    const r = sectionRanges.find((s) => s.start === remarkRowIndex);
+    return r ? r.end - r.start > 1 : false;
+  };
+  const toggleSectionCollapsed = (remarkRowIndex: number) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(remarkRowIndex)) next.delete(remarkRowIndex);
+      else next.add(remarkRowIndex);
+      return next;
+    });
+  };
+  const isRowInCollapsedSection = (rIdx: number) => {
+    const sectionStart = sectionStartByRow[rIdx];
+    if (sectionStart < 0) return false;
+    if (collapsedSections.has(sectionStart) && sectionStart !== rIdx) return true;
+    return false;
+  };
 
   useEffect(() => {
     try {
@@ -180,32 +213,62 @@ export default function ReviewPage() {
                   {tableData.rows.map((row, rIdx) => {
                     const rowExpanded = isRowExpanded(rIdx);
                     const remarkRow = isRemarkRow(row);
+                    const hidden = isRowInCollapsedSection(rIdx);
+                    const sectionStart = sectionStartByRow[rIdx];
+                    const isSectionHeader = remarkRow && sectionHasChildren(rIdx);
+                    const isCollapsed = isSectionHeader && collapsedSections.has(rIdx);
+                    const indentPx = remarkRow
+                      ? SECTION_INDENT_REMARK_PX
+                      : getPathLevel(String(row['rNoPart'] ?? '')) * SECTION_INDENT_PER_LEVEL_PX;
+                    if (hidden) return null;
                     return (
                       <tr
                         key={rIdx}
-                        className={`${remarkRow ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'}`}
+                        className={`${remarkRow ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'} ${
+                          isSectionHeader ? 'cursor-pointer select-none' : ''
+                        }`}
+                        onClick={isSectionHeader ? () => toggleSectionCollapsed(rIdx) : undefined}
                       >
-                        {tableData.headers.map((key) => {
+                        {tableData.headers.map((key, colIdx) => {
                           const text = String(row[key] ?? '');
                           const long = isLong(text);
+                          const isFirstCol = colIdx === 0;
                           return (
                             <td
                               key={key}
                               className={`group px-2 py-1.5 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
-                              } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''}`}
+                              } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''} ${
+                                isFirstCol && remarkRow ? 'border-l-2 border-gray-400' : ''
+                              }`}
                               title={rowExpanded ? undefined : text}
-                              style={{ minWidth: 0 }}
+                              style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
                             >
                               <div className="flex items-start justify-between gap-1 min-w-0">
-                                <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
-                                  {text || '—'}
-                                </span>
+                                {isFirstCol && isSectionHeader ? (
+                                  <span className="flex items-center gap-1 flex-shrink-0">
+                                    {isCollapsed ? (
+                                      <ChevronRight className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                    ) : (
+                                      <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                                    )}
+                                    <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
+                                      {text || '—'}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
+                                    {text || '—'}
+                                  </span>
+                                )}
                                 <div className="flex items-center gap-0.5 flex-shrink-0">
                                   {long && key !== 'id' ? (
                                     <button
                                       type="button"
-                                      onClick={() => toggleExpandRow(rIdx)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleExpandRow(rIdx);
+                                      }}
                                       className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
                                       title={rowExpanded ? 'Zeile einklappen' : 'Zeile erweitern'}
                                       aria-label={rowExpanded ? 'Collapse row' : 'Expand row'}
@@ -219,7 +282,10 @@ export default function ReviewPage() {
                                   ) : null}
                                   <button
                                     type="button"
-                                    onClick={() => handleCopyCell(text, rIdx, key)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopyCell(text, rIdx, key);
+                                    }}
                                     className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
                                     title="In Zwischenablage kopieren"
                                     aria-label="Copy"
