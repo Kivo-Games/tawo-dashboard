@@ -138,7 +138,7 @@ export default function MatchingPage() {
   const getKfeDfForRow = (rIdx: number): { id: string; kurztext: string; langtext: string; zeit: string } => {
     const mr = matchResultsByRow[rIdx];
     const sel = selectedMatchIndexByRow[rIdx] ?? 0;
-    if (!mr) return { id: '', kurztext: '', langtext: '', zeit: mr?.kfe_df_zeit ?? '' };
+    if (!mr) return { id: '', kurztext: '', langtext: '', zeit: '' };
     const opts = getMatchOptions(rIdx);
     const chosen = opts[sel];
     if (!chosen) {
