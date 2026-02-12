@@ -8,7 +8,7 @@ const steps = [
   { number: 1, label: 'Upload', href: '/' },
   { number: 2, label: 'Review', href: '/review' },
   { number: 3, label: 'Matching', href: '/matching' },
-  { number: 4, label: 'Results', href: '/results-compact' },
+  { number: 4, label: 'Results', href: '/matching' },
 ];
 
 export default function Header() {

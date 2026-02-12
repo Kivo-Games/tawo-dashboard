@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, ChevronRight, Loader2, Copy, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, ChevronRight, Loader2, Copy, Check, FileText, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
 import {
@@ -24,6 +24,7 @@ import {
 const EXPAND_THRESHOLD = 35;
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 const MATCHING_SENT_KEY = 'tawo_matching_sent';
+const DONE_ROWS_STORAGE_PREFIX = 'tawo_matching_done_';
 
 /** Stable key for current dataset so we don't resend on revisit. */
 function getMatchingSentKey(data: ReviewData): string {
@@ -91,6 +92,12 @@ export default function MatchingPage() {
   const [selectedMatchIndexByRow, setSelectedMatchIndexByRow] = useState<Record<number, number>>({});
   /** KFE Falsch Grund when user selected a non-first match. */
   const [kfeFalschGrundByRow, setKfeFalschGrundByRow] = useState<Record<number, string>>({});
+  /** Row indices marked as done (green). Persisted per dataset. */
+  const [doneRowIndices, setDoneRowIndices] = useState<Set<number>>(new Set());
+  /** Inline edit: which cell is being edited and current input value. */
+  const [editingCell, setEditingCell] = useState<{ rIdx: number; key: string } | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [tableCopied, setTableCopied] = useState(false);
 
   const copyCellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
   const handleCopyCell = async (text: string, rIdx: number, key: string) => {
@@ -158,6 +165,133 @@ export default function MatchingPage() {
     };
   };
 
+  const toggleDoneRow = (rIdx: number) => {
+    setDoneRowIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(rIdx)) next.delete(rIdx);
+      else next.add(rIdx);
+      if (reviewData) {
+        try {
+          const sentKey = getMatchingSentKey(reviewData);
+          sessionStorage.setItem(DONE_ROWS_STORAGE_PREFIX + sentKey, JSON.stringify([...next]));
+        } catch {}
+      }
+      return next;
+    });
+  };
+
+  const isRowDone = (rIdx: number) => doneRowIndices.has(rIdx);
+
+  const startEditCell = (rIdx: number, key: string, currentValue: string) => {
+    setEditingCell({ rIdx, key });
+    setEditingValue(currentValue);
+  };
+
+  const saveEditCell = () => {
+    if (!editingCell || !reviewData) return;
+    const { rIdx, key } = editingCell;
+    const rows = [...reviewData.tableData.rows];
+    if (rows[rIdx]) {
+      rows[rIdx] = { ...rows[rIdx], [key]: editingValue };
+      const updated: ReviewData = {
+        ...reviewData,
+        tableData: { ...reviewData.tableData, rows },
+      };
+      setReviewData(updated);
+      try {
+        sessionStorage.setItem(REVIEW_STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+    }
+    setEditingCell(null);
+    setEditingValue('');
+  };
+
+  const cancelEditCell = () => {
+    setEditingCell(null);
+    setEditingValue('');
+  };
+
+  /** Build table as TSV string (headers + rows) for clipboard or CSV export. Uses display values (match result for KFE when present). */
+  const buildTableTsv = (): string => {
+    const headers = tableData.headers;
+    const labels = tableData.labels ?? {};
+    const headerLine = headers.map((h) => labels[h] ?? h).join('\t');
+    const dataLines = tableData.rows.map((row, rIdx) => {
+      const remarkRow = isRemarkRow(row);
+      const hasMatch = !remarkRow && Boolean(matchResultsByRow[rIdx]);
+      const kfeDf = hasMatch ? getKfeDfForRow(rIdx) : null;
+      const sel = selectedMatchIndexByRow[rIdx] ?? 0;
+      const showFalsch = hasMatch && sel !== 0;
+      const falschVal = kfeFalschGrundByRow[rIdx] ?? '';
+      return headers
+        .map((key) => {
+          if (hasMatch && MATCHING_SECTION_KEYS.has(key)) {
+            if (key === 'kfeDfId') return kfeDf?.id ?? row[key] ?? '';
+            if (key === 'kfeDfKurztext') return kfeDf?.kurztext ?? row[key] ?? '';
+            if (key === 'kfeDfLangtext') return kfeDf?.langtext ?? row[key] ?? '';
+            if (key === 'kfeDfZeit') return kfeDf?.zeit ?? row[key] ?? '';
+            if (key === 'kfeFalschGrund') return showFalsch ? falschVal : '';
+          }
+          return String(row[key] ?? '');
+        })
+        .join('\t');
+    });
+    return [headerLine, ...dataLines].join('\n');
+  };
+
+  const buildTableCsv = (): string => {
+    const escape = (v: string) => {
+      const s = String(v);
+      if (s.includes('"') || s.includes(',') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const headers = tableData.headers;
+    const labels = tableData.labels ?? {};
+    const headerLine = headers.map((h) => escape(labels[h] ?? h)).join(',');
+    const dataLines = tableData.rows.map((row, rIdx) => {
+      const remarkRow = isRemarkRow(row);
+      const hasMatch = !remarkRow && Boolean(matchResultsByRow[rIdx]);
+      const kfeDf = hasMatch ? getKfeDfForRow(rIdx) : null;
+      const sel = selectedMatchIndexByRow[rIdx] ?? 0;
+      const showFalsch = hasMatch && sel !== 0;
+      const falschVal = kfeFalschGrundByRow[rIdx] ?? '';
+      return headers
+        .map((key) => {
+          let val: string;
+          if (hasMatch && MATCHING_SECTION_KEYS.has(key)) {
+            if (key === 'kfeDfId') val = kfeDf?.id ?? row[key] ?? '';
+            else if (key === 'kfeDfKurztext') val = kfeDf?.kurztext ?? row[key] ?? '';
+            else if (key === 'kfeDfLangtext') val = kfeDf?.langtext ?? row[key] ?? '';
+            else if (key === 'kfeDfZeit') val = kfeDf?.zeit ?? row[key] ?? '';
+            else if (key === 'kfeFalschGrund') val = showFalsch ? falschVal : '';
+            else val = String(row[key] ?? '');
+          } else val = String(row[key] ?? '');
+          return escape(val);
+        })
+        .join(',');
+    });
+    return [headerLine, ...dataLines].join('\n');
+  };
+
+  const handleCopyTable = async () => {
+    try {
+      await navigator.clipboard.writeText(buildTableTsv());
+      setTableCopied(true);
+      setTimeout(() => setTableCopied(false), 2000);
+    } catch {}
+  };
+
+  const handleExportCsv = () => {
+    const csv = buildTableCsv();
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${fileName || 'matching'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const setSelectedMatch = (rIdx: number, index: number) => {
     setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: index }));
     if (index === 0) {
@@ -215,6 +349,14 @@ export default function MatchingPage() {
         const data = JSON.parse(raw) as ReviewData;
         if (data?.tableData?.headers && Array.isArray(data.tableData.rows)) {
           setReviewData(data);
+          const sentKey = getMatchingSentKey(data);
+          const doneRaw = sessionStorage.getItem(DONE_ROWS_STORAGE_PREFIX + sentKey);
+          if (doneRaw) {
+            try {
+              const arr = JSON.parse(doneRaw) as number[];
+              setDoneRowIndices(new Set(Array.isArray(arr) ? arr : []));
+            } catch {}
+          }
         }
       }
     } catch {
@@ -390,19 +532,44 @@ export default function MatchingPage() {
               <p className="text-sm font-medium text-gray-700">
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <Link
                   href="/review"
                   className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   ← Zurück zur Prüfung
                 </Link>
-                <Link
-                  href="/results-compact"
-                  className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+                <button
+                  type="button"
+                  onClick={handleCopyTable}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
+                  title="Tabelle in Zwischenablage kopieren (z.B. in Google Sheets einfügen)"
                 >
-                  Zu den Ergebnissen →
-                </Link>
+                  {tableCopied ? (
+                    <Check className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                  {tableCopied ? 'Kopiert' : 'Tabelle kopieren'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
+                  title="Als CSV-Datei herunterladen"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV exportieren
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-400 text-sm font-medium rounded-md cursor-not-allowed bg-gray-50"
+                  title="GAEB-Export (noch nicht verfügbar)"
+                >
+                  <FileText className="w-4 h-4" />
+                  GAEB exportieren
+                </button>
               </div>
             </div>
             <div className="overflow-x-auto w-full min-w-0">
@@ -443,9 +610,10 @@ export default function MatchingPage() {
                     });
                     return cols;
                   })()}
+                  <col key="aktionen" style={{ width: 56, minWidth: 56 }} />
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
-                  {/* Row 1: group headings – LV, Technische Einschätzung, KFE / DF */}
+                  {/* Row 1: group headings – LV, Technische Einschätzung, KFE / DF, Aktionen */}
                   <tr>
                     {getGroupHeaders().map((g, i) => {
                       const groupName = g.label as ColumnGroup;
@@ -482,6 +650,9 @@ export default function MatchingPage() {
                         </th>
                       );
                     })}
+                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 border-l-2 border-l-gray-400 cursor-default">
+                      Aktionen
+                    </th>
                   </tr>
                   {/* Row 2: subgroup headings – no background; LV and Technische Einschätzung empty */}
                   <tr>
@@ -506,6 +677,7 @@ export default function MatchingPage() {
                           {sg.label}
                         </th>
                       ))}
+                    <th className="px-3 py-0 border-r border-gray-200 bg-gray-50/80 border-l-2 border-l-gray-400" />
                   </tr>
                   {/* Row 3: column names */}
                   <tr>
@@ -541,6 +713,14 @@ export default function MatchingPage() {
                           </th>
                         );
                       });
+                      headerCells.push(
+                        <th
+                          key="aktionen"
+                          className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 border-l-2 border-l-gray-400"
+                        >
+                          Aktionen
+                        </th>
+                      );
                       return headerCells;
                     })()}
                   </tr>
@@ -557,10 +737,11 @@ export default function MatchingPage() {
                       ? SECTION_INDENT_REMARK_PX
                       : getPathLevel(String(row['rNoPart'] ?? '')) * SECTION_INDENT_PER_LEVEL_PX;
                     if (hidden) return null;
+                    const rowDone = !remarkRow && isRowDone(rIdx);
                     return (
                       <tr
                         key={rIdx}
-                        className={`${remarkRow ? 'bg-gray-100 hover:bg-gray-200' : 'hover:bg-gray-100'} ${
+                        className={`${remarkRow ? 'bg-gray-100 hover:bg-gray-200' : rowDone ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-100'} ${
                           isSectionHeader ? 'cursor-pointer select-none' : ''
                         }`}
                         onClick={isSectionHeader ? () => toggleSectionCollapsed(rIdx) : undefined}
@@ -611,6 +792,7 @@ export default function MatchingPage() {
 
                             const isKfeDfId = key === 'kfeDfId';
                             const isKfeFalschGrund = key === 'kfeFalschGrund';
+                            const isEditingThis = editingCell?.rIdx === rIdx && editingCell?.key === key;
 
                             cells.push(
                             <td
@@ -622,13 +804,31 @@ export default function MatchingPage() {
                               } ${isFirstInGroup && !isFirstCol ? 'border-l-2 border-l-gray-400' : ''} ${
                                 TEXT_COLUMN_KEYS.has(key) ? 'max-w-[220px]' : ''
                               }`}
-                              title={rowExpanded ? undefined : displayText}
+                              title={rowExpanded && !isEditingThis ? undefined : displayText}
                               style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
+                              onDoubleClick={(e) => {
+                                e.stopPropagation();
+                                if (!showSpinner) startEditCell(rIdx, key, displayText);
+                              }}
                             >
                               <div className="flex items-start justify-between gap-1 min-w-0">
-                                {showSpinner ? (
+                                {isEditingThis ? (
+                                  <input
+                                    type="text"
+                                    value={editingValue}
+                                    onChange={(e) => setEditingValue(e.target.value)}
+                                    onBlur={saveEditCell}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') saveEditCell();
+                                      if (e.key === 'Escape') cancelEditCell();
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full min-w-0 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-900 bg-white"
+                                    autoFocus
+                                  />
+                                ) : showSpinner ? (
                                   <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
-                                ) : isKfeDfId && hasMatch && matchOptions.length > 0 ? (
+                                ) : isKfeDfId && hasMatch && matchOptions.length > 0 && !isEditingThis ? (
                                   <span className="flex flex-col gap-1 min-w-0 flex-1">
                                     <select
                                       value={selectedMatchIdx}
@@ -647,7 +847,7 @@ export default function MatchingPage() {
                                       {kfeDf!.kurztext || '—'}
                                     </span>
                                   </span>
-                                ) : isKfeFalschGrund && showFalschGrund ? (
+                                ) : isKfeFalschGrund && showFalschGrund && !isEditingThis ? (
                                   <select
                                     value={falschGrundValue}
                                     onChange={(e) =>
@@ -679,7 +879,7 @@ export default function MatchingPage() {
                                     {displayText || '—'}
                                   </span>
                                 )}
-                                {!showSpinner && !isKfeDfId && !(isKfeFalschGrund && showFalschGrund) && (
+                                {!showSpinner && !isEditingThis && !isKfeDfId && !(isKfeFalschGrund && showFalschGrund) && (
                                   <div className="flex items-center gap-0.5 flex-shrink-0">
                                     {long && key !== 'id' ? (
                                       <button
@@ -723,13 +923,34 @@ export default function MatchingPage() {
                           });
                           return cells;
                         })()}
+                        <td
+                          key="aktionen"
+                          className="px-3 py-2 border-r border-gray-200 border-l-2 border-l-gray-400 align-middle"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {!remarkRow ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleDoneRow(rIdx)}
+                              title={rowDone ? 'Als nicht erledigt markieren' : 'Als erledigt markieren'}
+                              className={`p-1.5 rounded transition-colors ${
+                                rowDone
+                                  ? 'text-green-600 bg-green-100 hover:bg-green-200'
+                                  : 'text-gray-400 hover:text-green-600 hover:bg-gray-100'
+                              }`}
+                              aria-label={rowDone ? 'Erledigt' : 'Als erledigt markieren'}
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                          ) : null}
+                        </td>
                       </tr>
                     );
                   })}
                   {webhookStatus === 'sending' && (
                     <tr className="bg-gray-50 border-t-2 border-gray-200">
                       <td
-                        colSpan={tableData.headers.length}
+                        colSpan={tableData.headers.length + 1}
                         className="px-4 py-4 text-center text-sm text-gray-600"
                       >
                         <div className="flex items-center justify-center gap-3">
@@ -741,14 +962,14 @@ export default function MatchingPage() {
                   )}
                   {webhookStatus === 'done' && (
                     <tr className="bg-green-50 border-t border-gray-200">
-                      <td colSpan={tableData.headers.length} className="px-4 py-3 text-center text-sm text-green-700">
+                      <td colSpan={tableData.headers.length + 1} className="px-4 py-3 text-center text-sm text-green-700">
                         Gesendet.
                       </td>
                     </tr>
                   )}
                   {webhookStatus === 'error' && (
                     <tr className="bg-red-50 border-t border-gray-200">
-                      <td colSpan={tableData.headers.length} className="px-4 py-3 text-center text-sm text-red-700">
+                      <td colSpan={tableData.headers.length + 1} className="px-4 py-3 text-center text-sm text-red-700">
                         Fehler beim Senden. Bitte erneut versuchen.
                       </td>
                     </tr>
