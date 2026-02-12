@@ -25,6 +25,9 @@ const EXPAND_THRESHOLD = 35;
 const REVIEW_STORAGE_KEY = 'tawo_review_data';
 const MATCHING_SENT_KEY = 'tawo_matching_sent';
 const DONE_ROWS_STORAGE_PREFIX = 'tawo_matching_done_';
+const MATCH_RESULTS_CACHE_PREFIX = 'tawo_matching_results_';
+const MATCH_SELECTION_CACHE_PREFIX = 'tawo_matching_selection_';
+const MATCH_FALSCH_CACHE_PREFIX = 'tawo_matching_falsch_';
 
 /** Stable key for current dataset so we don't resend on revisit. */
 function getMatchingSentKey(data: ReviewData): string {
@@ -357,12 +360,65 @@ export default function MatchingPage() {
               setDoneRowIndices(new Set(Array.isArray(arr) ? arr : []));
             } catch {}
           }
+          const resultsRaw = sessionStorage.getItem(MATCH_RESULTS_CACHE_PREFIX + sentKey);
+          if (resultsRaw) {
+            try {
+              const obj = JSON.parse(resultsRaw) as Record<string, MatchResult>;
+              if (obj && typeof obj === 'object') {
+                const parsed: Record<number, MatchResult> = {};
+                Object.keys(obj).forEach((k) => {
+                  const n = Number(k);
+                  if (!Number.isNaN(n) && obj[k] && typeof obj[k] === 'object') parsed[n] = obj[k] as MatchResult;
+                });
+                setMatchResultsByRow(parsed);
+              }
+            } catch {}
+          }
+          const selectionRaw = sessionStorage.getItem(MATCH_SELECTION_CACHE_PREFIX + sentKey);
+          if (selectionRaw) {
+            try {
+              const obj = JSON.parse(selectionRaw) as Record<string, number>;
+              if (obj && typeof obj === 'object') {
+                const parsed: Record<number, number> = {};
+                Object.keys(obj).forEach((k) => {
+                  const n = Number(k);
+                  if (!Number.isNaN(n)) parsed[n] = Number(obj[k]);
+                });
+                setSelectedMatchIndexByRow(parsed);
+              }
+            } catch {}
+          }
+          const falschRaw = sessionStorage.getItem(MATCH_FALSCH_CACHE_PREFIX + sentKey);
+          if (falschRaw) {
+            try {
+              const obj = JSON.parse(falschRaw) as Record<string, string>;
+              if (obj && typeof obj === 'object') {
+                const parsed: Record<number, string> = {};
+                Object.keys(obj).forEach((k) => {
+                  const n = Number(k);
+                  if (!Number.isNaN(n) && typeof obj[k] === 'string') parsed[n] = obj[k];
+                });
+                setKfeFalschGrundByRow(parsed);
+              }
+            } catch {}
+          }
         }
       }
     } catch {
       setReviewData(null);
     }
   }, []);
+
+  // Persist matching results and selections to sessionStorage so they survive tab navigation
+  useEffect(() => {
+    if (!reviewData) return;
+    const sentKey = getMatchingSentKey(reviewData);
+    try {
+      sessionStorage.setItem(MATCH_RESULTS_CACHE_PREFIX + sentKey, JSON.stringify(matchResultsByRow));
+      sessionStorage.setItem(MATCH_SELECTION_CACHE_PREFIX + sentKey, JSON.stringify(selectedMatchIndexByRow));
+      sessionStorage.setItem(MATCH_FALSCH_CACHE_PREFIX + sentKey, JSON.stringify(kfeFalschGrundByRow));
+    } catch {}
+  }, [reviewData, matchResultsByRow, selectedMatchIndexByRow, kfeFalschGrundByRow]);
 
   // Slowly hide the stats section after mount
   useEffect(() => {
@@ -474,6 +530,12 @@ export default function MatchingPage() {
   const handleRerunMatches = () => {
     try {
       sessionStorage.removeItem(MATCHING_SENT_KEY);
+      if (reviewData) {
+        const sentKey = getMatchingSentKey(reviewData);
+        sessionStorage.removeItem(MATCH_RESULTS_CACHE_PREFIX + sentKey);
+        sessionStorage.removeItem(MATCH_SELECTION_CACHE_PREFIX + sentKey);
+        sessionStorage.removeItem(MATCH_FALSCH_CACHE_PREFIX + sentKey);
+      }
     } catch {}
     setMatchResultsByRow({});
     setSelectedMatchIndexByRow({});
