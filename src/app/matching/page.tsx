@@ -4,6 +4,7 @@ import { ChevronDown, ChevronUp, ChevronRight, Loader2, Copy, Check } from 'luci
 import Link from 'next/link';
 import { useState, useEffect, useMemo } from 'react';
 import {
+  LV_HEADER_KEYS,
   COMPACT_COLUMN_KEYS,
   TEXT_COLUMN_KEYS,
   KFE_MEDIUM_COLUMN_KEYS,
@@ -255,18 +256,30 @@ export default function MatchingPage() {
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
             </div>
-            <div className="overflow-auto max-h-[60vh] w-full" style={{ overflowX: 'auto' }}>
+            <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
               <table className="text-sm border-collapse table-auto" style={{ minWidth: 'max-content' }}>
                 <colgroup>
                   {tableData.headers.map((h) => {
+                    if (LV_HEADER_KEYS.includes(h)) {
+                      return (
+                        <col
+                          key={h}
+                          style={{
+                            minWidth: COMPACT_COLUMN_KEYS.has(h)
+                              ? COL_MIN_COMPACT
+                              : TEXT_COLUMN_KEYS.has(h)
+                                ? TEXT_COLUMN_WIDTH
+                                : COL_MIN_DEFAULT,
+                          }}
+                        />
+                      );
+                    }
                     const w =
-                      COMPACT_COLUMN_KEYS.has(h)
-                        ? COL_MIN_COMPACT
-                        : TEXT_COLUMN_KEYS.has(h)
-                          ? TEXT_COLUMN_WIDTH
-                          : KFE_MEDIUM_COLUMN_KEYS.has(h)
-                            ? KFE_MEDIUM_WIDTH
-                            : COL_MIN_DEFAULT;
+                      TEXT_COLUMN_KEYS.has(h)
+                        ? TEXT_COLUMN_WIDTH
+                        : KFE_MEDIUM_COLUMN_KEYS.has(h)
+                          ? KFE_MEDIUM_WIDTH
+                          : COL_MIN_DEFAULT;
                     return <col key={h} style={{ width: w, minWidth: w }} />;
                   })}
                 </colgroup>
