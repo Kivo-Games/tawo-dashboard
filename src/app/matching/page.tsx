@@ -261,18 +261,13 @@ export default function MatchingPage() {
                 <colgroup>
                   {tableData.headers.map((h) => {
                     if (LV_HEADER_KEYS.includes(h)) {
-                      return (
-                        <col
-                          key={h}
-                          style={{
-                            minWidth: COMPACT_COLUMN_KEYS.has(h)
-                              ? COL_MIN_COMPACT
-                              : TEXT_COLUMN_KEYS.has(h)
-                                ? TEXT_COLUMN_WIDTH
-                                : COL_MIN_DEFAULT,
-                          }}
-                        />
-                      );
+                      const w =
+                        COMPACT_COLUMN_KEYS.has(h)
+                          ? COL_MIN_COMPACT
+                          : TEXT_COLUMN_KEYS.has(h)
+                            ? TEXT_COLUMN_WIDTH
+                            : COL_MIN_DEFAULT;
+                      return <col key={h} style={{ width: w, minWidth: w }} />;
                     }
                     const w =
                       TEXT_COLUMN_KEYS.has(h)
@@ -347,7 +342,7 @@ export default function MatchingPage() {
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''} ${
                                 isFirstCol && remarkRow ? 'border-l-2 border-gray-400' : ''
-                              }`}
+                              } ${TEXT_COLUMN_KEYS.has(key) ? 'max-w-[220px]' : ''}`}
                               title={rowExpanded ? undefined : text}
                               style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
                             >
