@@ -16,6 +16,9 @@ import {
   buildSectionRanges,
   SECTION_INDENT_REMARK_PX,
   SECTION_INDENT_PER_LEVEL_PX,
+  getColumnGroup,
+  isFirstColumnInGroup,
+  type ColumnGroup,
 } from '@/lib/table-columns';
 
 const EXPAND_THRESHOLD = 35;
@@ -79,6 +82,7 @@ export default function MatchingPage() {
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
   const [sendingRowIndex, setSendingRowIndex] = useState<number | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
+  const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
   /** Match result from API per table row index (only item rows). */
   const [matchResultsByRow, setMatchResultsByRow] = useState<Record<number, MatchResult>>({});
@@ -187,6 +191,15 @@ export default function MatchingPage() {
       return next;
     });
   };
+  const toggleColumnGroupCollapsed = (group: ColumnGroup) => {
+    setCollapsedColumnGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
+  };
+  const isColumnGroupCollapsed = (group: ColumnGroup) => collapsedColumnGroups.has(group);
   const isRowInCollapsedSection = (rIdx: number) => {
     const sectionStart = sectionStartByRow[rIdx];
     if (sectionStart < 0) return false;
@@ -368,54 +381,141 @@ export default function MatchingPage() {
             <div className="overflow-x-auto w-full min-w-0">
               <table className="text-sm border-collapse table-auto" style={{ minWidth: 'max-content' }}>
                 <colgroup>
-                  {tableData.headers.map((h) => {
-                    if (LV_HEADER_KEYS.includes(h)) {
-                      const w =
-                        COMPACT_COLUMN_KEYS.has(h)
-                          ? COL_MIN_COMPACT
-                          : TEXT_COLUMN_KEYS.has(h)
+                  {(() => {
+                    const cols: JSX.Element[] = [];
+                    let lastGroup: ColumnGroup | null = null;
+                    tableData.headers.forEach((h) => {
+                      const group = getColumnGroup(h);
+                      const isCollapsed = group ? isColumnGroupCollapsed(group) : false;
+                      if (isCollapsed) {
+                        // If this is the first column of a collapsed group, add placeholder col
+                        if (group !== lastGroup) {
+                          cols.push(<col key={`collapsed-${group}`} style={{ width: COL_MIN_DEFAULT, minWidth: COL_MIN_DEFAULT }} />);
+                          lastGroup = group;
+                        }
+                        return;
+                      }
+                      if (group !== lastGroup) lastGroup = group;
+                      if (LV_HEADER_KEYS.includes(h)) {
+                        const w =
+                          COMPACT_COLUMN_KEYS.has(h)
+                            ? COL_MIN_COMPACT
+                            : TEXT_COLUMN_KEYS.has(h)
+                              ? TEXT_COLUMN_WIDTH
+                              : COL_MIN_DEFAULT;
+                        cols.push(<col key={h} style={{ width: w, minWidth: w }} />);
+                      } else {
+                        const w =
+                          TEXT_COLUMN_KEYS.has(h)
                             ? TEXT_COLUMN_WIDTH
-                            : COL_MIN_DEFAULT;
-                      return <col key={h} style={{ width: w, minWidth: w }} />;
-                    }
-                    const w =
-                      TEXT_COLUMN_KEYS.has(h)
-                        ? TEXT_COLUMN_WIDTH
-                        : KFE_MEDIUM_COLUMN_KEYS.has(h)
-                          ? KFE_MEDIUM_WIDTH
-                          : COL_MIN_DEFAULT;
-                    return <col key={h} style={{ width: w, minWidth: w }} />;
-                  })}
+                            : KFE_MEDIUM_COLUMN_KEYS.has(h)
+                              ? KFE_MEDIUM_WIDTH
+                              : COL_MIN_DEFAULT;
+                        cols.push(<col key={h} style={{ width: w, minWidth: w }} />);
+                      }
+                    });
+                    return cols;
+                  })()}
                 </colgroup>
                 <thead className="sticky top-0 bg-gray-50 border-b border-gray-200 z-10">
                   {/* Row 1: group headings – LV, Technische Einschätzung, KFE / DF */}
                   <tr>
-                    {getGroupHeaders().map((g, i) => (
-                      <th key={i} colSpan={g.colspan} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 last:border-r-0">
-                        {g.label}
-                      </th>
-                    ))}
+                    {getGroupHeaders().map((g, i) => {
+                      const groupName = g.label as ColumnGroup;
+                      const isCollapsed = isColumnGroupCollapsed(groupName);
+                      // Count visible columns for this group
+                      const visibleCols = tableData.headers.filter((h) => getColumnGroup(h) === groupName).length;
+                      // Find if there's a visible group before this one (for border-left)
+                      const hasVisibleGroupBefore =
+                        i > 0 &&
+                        getGroupHeaders()
+                          .slice(0, i)
+                          .some((prevG) => {
+                            const prevGroup = prevG.label as ColumnGroup;
+                            return !isColumnGroupCollapsed(prevGroup);
+                          });
+                      return (
+                        <th
+                          key={i}
+                          colSpan={isCollapsed ? 1 : visibleCols}
+                          className={`px-3 py-2.5 text-left text-xs font-semibold text-gray-600 border-r border-gray-200 last:border-r-0 cursor-pointer hover:bg-gray-100 transition-colors ${
+                            hasVisibleGroupBefore || i > 0 ? 'border-l-2 border-l-gray-400' : ''
+                          }`}
+                          onClick={() => toggleColumnGroupCollapsed(groupName)}
+                          title={isCollapsed ? 'Abschnitt einblenden' : 'Abschnitt ausblenden'}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isCollapsed ? (
+                              <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" />
+                            ) : (
+                              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" />
+                            )}
+                            <span>{g.label}</span>
+                          </div>
+                        </th>
+                      );
+                    })}
                   </tr>
                   {/* Row 2: subgroup headings – no background; LV and Technische Einschätzung empty */}
                   <tr>
-                    <th colSpan={11} className="px-3 py-0 border-r border-gray-200 bg-gray-50/80" />
-                    <th colSpan={3} className="px-3 py-0 border-r border-gray-200 bg-gray-50/80" />
-                    {getKfeSubgroupHeaders().map((sg, i) => (
-                      <th key={i} colSpan={sg.colspan} className="px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0">
-                        {sg.label}
-                      </th>
-                    ))}
+                    {!isColumnGroupCollapsed('LV') && (
+                      <th colSpan={11} className="px-3 py-0 border-r border-gray-200 bg-gray-50/80" />
+                    )}
+                    {!isColumnGroupCollapsed('Technische Einschätzung') && (
+                      <th
+                        colSpan={3}
+                        className="px-3 py-0 border-r border-gray-200 bg-gray-50/80 border-l-2 border-l-gray-400"
+                      />
+                    )}
+                    {!isColumnGroupCollapsed('KFE / DF') &&
+                      getKfeSubgroupHeaders().map((sg, i) => (
+                        <th
+                          key={i}
+                          colSpan={sg.colspan}
+                          className={`px-3 py-2 text-left text-xs font-medium text-gray-500 border-r border-gray-200 last:border-r-0 ${
+                            i === 0 ? 'border-l-2 border-l-gray-400' : ''
+                          }`}
+                        >
+                          {sg.label}
+                        </th>
+                      ))}
                   </tr>
                   {/* Row 3: column names */}
                   <tr>
-                    {tableData.headers.map((h) => (
-                      <th
-                        key={h}
-                        className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0"
-                      >
-                        {tableData.labels?.[h] ?? h}
-                      </th>
-                    ))}
+                    {(() => {
+                      const headerCells: JSX.Element[] = [];
+                      let lastGroup: ColumnGroup | null = null;
+                      tableData.headers.forEach((h, colIdx) => {
+                        const group = getColumnGroup(h);
+                        const isCollapsed = group ? isColumnGroupCollapsed(group) : false;
+                        if (isCollapsed) {
+                          // If this is the first column of a collapsed group, add placeholder
+                          if (group !== lastGroup) {
+                            headerCells.push(
+                              <th
+                                key={`collapsed-${group}`}
+                                className="px-3 py-2.5 text-left text-xs font-medium text-gray-400 uppercase tracking-wider whitespace-nowrap border-r border-gray-100"
+                              />
+                            );
+                            lastGroup = group;
+                          }
+                          return;
+                        }
+                        const isFirstInGroup = group !== lastGroup;
+                        if (isFirstInGroup) lastGroup = group;
+                        headerCells.push(
+                          <th
+                            key={h}
+                            className={`px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap border-r border-gray-100 last:border-r-0 ${
+                              isFirstInGroup && colIdx > 0 ? 'border-l-2 border-l-gray-400' : ''
+                            }`}
+                          >
+                            {tableData.labels?.[h] ?? h}
+                          </th>
+                        );
+                      });
+                      return headerCells;
+                    })()}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -438,40 +538,63 @@ export default function MatchingPage() {
                         }`}
                         onClick={isSectionHeader ? () => toggleSectionCollapsed(rIdx) : undefined}
                       >
-                        {tableData.headers.map((key, colIdx) => {
-                          const isMatchingCol = MATCHING_SECTION_KEYS.has(key);
-                          const showSpinner = isMatchingCol && isThisRowSending;
-                          const matchResult = !remarkRow ? matchResultsByRow[rIdx] : undefined;
-                          const hasMatch = Boolean(matchResult);
-                          const kfeDf = hasMatch ? getKfeDfForRow(rIdx) : null;
-                          const selectedMatchIdx = selectedMatchIndexByRow[rIdx] ?? 0;
-                          const matchOptions = hasMatch ? getMatchOptions(rIdx) : [];
-                          const showFalschGrund = hasMatch && selectedMatchIdx !== 0;
-                          const falschGrundValue = kfeFalschGrundByRow[rIdx] ?? KFE_FALSCH_GRUND_OPTIONS[0];
+                        {(() => {
+                          const cells: JSX.Element[] = [];
+                          let lastGroup: ColumnGroup | null = null;
+                          tableData.headers.forEach((key, colIdx) => {
+                            const group = getColumnGroup(key);
+                            const isCollapsed = group ? isColumnGroupCollapsed(group) : false;
+                            if (isCollapsed) {
+                              // If this is the first column of a collapsed group, add placeholder cell
+                              if (group !== lastGroup) {
+                                cells.push(
+                                  <td
+                                    key={`collapsed-${group}`}
+                                    className="px-3 py-2 bg-gray-50 border-r border-gray-200"
+                                  />
+                                );
+                                lastGroup = group;
+                              }
+                              return;
+                            }
+                            if (group !== lastGroup) lastGroup = group;
 
-                          let displayText = showSpinner ? '' : String(row[key] ?? '');
-                          if (hasMatch && isMatchingCol && !showSpinner) {
-                            if (key === 'kfeDfId') displayText = kfeDf!.id;
-                            else if (key === 'kfeDfKurztext') displayText = kfeDf!.kurztext;
-                            else if (key === 'kfeDfLangtext') displayText = kfeDf!.langtext;
-                            else if (key === 'kfeDfZeit') displayText = kfeDf!.zeit;
-                            else if (key === 'kfeFalschGrund') displayText = showFalschGrund ? falschGrundValue : '';
-                          }
+                            const isMatchingCol = MATCHING_SECTION_KEYS.has(key);
+                            const showSpinner = isMatchingCol && isThisRowSending;
+                            const matchResult = !remarkRow ? matchResultsByRow[rIdx] : undefined;
+                            const hasMatch = Boolean(matchResult);
+                            const kfeDf = hasMatch ? getKfeDfForRow(rIdx) : null;
+                            const selectedMatchIdx = selectedMatchIndexByRow[rIdx] ?? 0;
+                            const matchOptions = hasMatch ? getMatchOptions(rIdx) : [];
+                            const showFalschGrund = hasMatch && selectedMatchIdx !== 0;
+                            const falschGrundValue = kfeFalschGrundByRow[rIdx] ?? KFE_FALSCH_GRUND_OPTIONS[0];
 
-                          const long = !showSpinner && isLong(displayText);
-                          const isFirstCol = colIdx === 0;
+                            let displayText = showSpinner ? '' : String(row[key] ?? '');
+                            if (hasMatch && isMatchingCol && !showSpinner) {
+                              if (key === 'kfeDfId') displayText = kfeDf!.id;
+                              else if (key === 'kfeDfKurztext') displayText = kfeDf!.kurztext;
+                              else if (key === 'kfeDfLangtext') displayText = kfeDf!.langtext;
+                              else if (key === 'kfeDfZeit') displayText = kfeDf!.zeit;
+                              else if (key === 'kfeFalschGrund') displayText = showFalschGrund ? falschGrundValue : '';
+                            }
 
-                          const isKfeDfId = key === 'kfeDfId';
-                          const isKfeFalschGrund = key === 'kfeFalschGrund';
+                            const long = !showSpinner && isLong(displayText);
+                            const isFirstCol = colIdx === 0;
+                            const isFirstInGroup = isFirstColumnInGroup(key, tableData.headers);
 
-                          return (
+                            const isKfeDfId = key === 'kfeDfId';
+                            const isKfeFalschGrund = key === 'kfeFalschGrund';
+
+                            cells.push(
                             <td
                               key={key}
                               className={`group px-3 py-2 text-gray-900 align-top transition-colors ${
                                 rowExpanded ? 'whitespace-normal break-words' : 'whitespace-nowrap truncate'
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''} ${
                                 isFirstCol && remarkRow ? 'border-l-2 border-gray-400' : ''
-                              } ${TEXT_COLUMN_KEYS.has(key) ? 'max-w-[220px]' : ''}`}
+                              } ${isFirstInGroup && !isFirstCol ? 'border-l-2 border-l-gray-400' : ''} ${
+                                TEXT_COLUMN_KEYS.has(key) ? 'max-w-[220px]' : ''
+                              }`}
                               title={rowExpanded ? undefined : displayText}
                               style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
                             >
@@ -569,8 +692,10 @@ export default function MatchingPage() {
                                 )}
                               </div>
                             </td>
-                          );
-                        })}
+                            );
+                          });
+                          return cells;
+                        })()}
                       </tr>
                     );
                   })}

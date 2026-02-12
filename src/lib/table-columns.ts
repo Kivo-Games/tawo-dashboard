@@ -99,6 +99,30 @@ export const MATCHING_SECTION_KEYS = new Set([
 /** LV only (for Review page). */
 export const LV_HEADER_KEYS = LV_COLUMNS.map((c) => c.key);
 
+/** Column group names. */
+export type ColumnGroup = 'LV' | 'Technische Einschätzung' | 'KFE / DF';
+
+/** Get the group name for a column key. */
+export function getColumnGroup(key: string): ColumnGroup | null {
+  if (LV_COLUMNS.some((c) => c.key === key)) return 'LV';
+  if (TECH_COLUMNS.some((c) => c.key === key)) return 'Technische Einschätzung';
+  if (KFE_DF_COLUMNS.some((c) => c.key === key) || KFE_KIT_COLUMNS.some((c) => c.key === key))
+    return 'KFE / DF';
+  return null;
+}
+
+/** Check if a column key is the first column in its group (for visual separator). */
+export function isFirstColumnInGroup(key: string, headers: string[]): boolean {
+  const group = getColumnGroup(key);
+  if (!group) return false;
+  const idx = headers.indexOf(key);
+  if (idx < 0) return false;
+  // Check if previous column belongs to a different group
+  if (idx === 0) return true;
+  const prevGroup = getColumnGroup(headers[idx - 1]);
+  return prevGroup !== group;
+}
+
 /** Group info for thead: label and colspan (no "Group" prefix). */
 export type GroupHeader = { label: string; colspan: number; subgroup?: string };
 export function getGroupHeaders(): GroupHeader[] {
