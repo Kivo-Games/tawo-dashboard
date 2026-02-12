@@ -142,7 +142,7 @@ export default function ReviewPage() {
           Upload prüfen & Matching starten
         </h1>
 
-        {/* Uploaded File Card */}
+        {/* Uploaded File Card + Actions */}
         <div className="border border-gray-200 rounded-lg p-5 mb-6">
           <div className="flex items-start gap-4 mb-5">
             <div className="p-2.5 bg-gray-100 rounded-lg">
@@ -154,10 +154,24 @@ export default function ReviewPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="bg-gray-50 rounded-lg p-4 max-w-xs">
               <p className="text-2xl font-semibold text-gray-900">{totalLineItems}</p>
               <p className="text-xs text-gray-500 mt-1">Positionen gesamt</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/"
+                className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+              >
+                ← Zurück zum Upload
+              </Link>
+              <Link
+                href="/matching"
+                className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+              >
+                Matching-Prozess starten →
+              </Link>
             </div>
           </div>
         </div>
@@ -170,7 +184,7 @@ export default function ReviewPage() {
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
             </div>
-            <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
+            <div className="overflow-x-auto w-full min-w-0">
               <table className="w-full text-sm border-collapse table-auto">
                 <colgroup>
                   {LV_HEADER_KEYS.map((h) => (
@@ -300,22 +314,6 @@ export default function ReviewPage() {
             </div>
           </div>
         )}
-
-        {/* Bottom Actions */}
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            ← Zurück zum Upload
-          </Link>
-          <Link
-            href="/matching"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-          >
-            Matching-Prozess starten →
-          </Link>
-        </div>
       </div>
     </div>
   );

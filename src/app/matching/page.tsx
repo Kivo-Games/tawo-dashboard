@@ -251,12 +251,26 @@ export default function MatchingPage() {
         {/* Data Table (same structure as Review + group headers; spinner in Technische Einschätzung & KFE/DF columns) */}
         {tableData.headers.length > 0 && tableData.rows.length > 0 && (
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm font-medium text-gray-700">
                 Konvertierte Daten ({tableData.rows.length} Zeilen)
               </p>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/review"
+                  className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  ← Zurück zur Prüfung
+                </Link>
+                <Link
+                  href="/results-compact"
+                  className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
+                >
+                  Zu den Ergebnissen →
+                </Link>
+              </div>
             </div>
-            <div className="overflow-auto max-h-[60vh] w-full min-w-0" style={{ overflowX: 'auto' }}>
+            <div className="overflow-x-auto w-full min-w-0">
               <table className="text-sm border-collapse table-auto" style={{ minWidth: 'max-content' }}>
                 <colgroup>
                   {tableData.headers.map((h) => {
@@ -442,21 +456,6 @@ export default function MatchingPage() {
             </div>
           </div>
         )}
-
-        <div className="flex items-center justify-between">
-          <Link
-            href="/review"
-            className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            ← Zurück zur Prüfung
-          </Link>
-          <Link
-            href="/results-compact"
-            className="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-md hover:bg-gray-800 transition-colors"
-          >
-            Zu den Ergebnissen →
-          </Link>
-        </div>
       </div>
     </div>
   );
