@@ -176,7 +176,7 @@ export default function MatchingPage() {
       if (reviewData) {
         try {
           const sentKey = getMatchingSentKey(reviewData);
-          sessionStorage.setItem(DONE_ROWS_STORAGE_PREFIX + sentKey, JSON.stringify([...next]));
+          sessionStorage.setItem(DONE_ROWS_STORAGE_PREFIX + sentKey, JSON.stringify(Array.from(next)));
         } catch {}
       }
       return next;
