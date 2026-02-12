@@ -37,6 +37,26 @@ const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 
+/** One option from the matching API top_5_matches. */
+export type TopMatch = {
+  titel: string;
+  source_id: string;
+  source_type: string;
+  combined_score: number;
+};
+
+/** Match result returned per row from the matching webhook. */
+export type MatchResult = {
+  matched_leistungs_id?: string;
+  matched_titel?: string;
+  matched_embed_text?: string;
+  matched_source_id?: string;
+  match_status?: string;
+  top_5_matches?: TopMatch[];
+  /** If present, use for KFE DF Zeit */
+  kfe_df_zeit?: string;
+};
+
 type TableData = {
   headers: string[];
   rows: Record<string, string>[];
@@ -50,6 +70,8 @@ type ReviewData = {
   fileName: string;
 };
 
+const KFE_FALSCH_GRUND_OPTIONS = ['falsche montageart'] as const;
+
 export default function MatchingPage() {
   const [reviewData, setReviewData] = useState<ReviewData | null>(null);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
@@ -58,6 +80,12 @@ export default function MatchingPage() {
   const [sendingRowIndex, setSendingRowIndex] = useState<number | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
+  /** Match result from API per table row index (only item rows). */
+  const [matchResultsByRow, setMatchResultsByRow] = useState<Record<number, MatchResult>>({});
+  /** Selected top_5 index (0 = main match, 1–4 = alternative). */
+  const [selectedMatchIndexByRow, setSelectedMatchIndexByRow] = useState<Record<number, number>>({});
+  /** KFE Falsch Grund when user selected a non-first match. */
+  const [kfeFalschGrundByRow, setKfeFalschGrundByRow] = useState<Record<number, string>>({});
 
   const copyCellId = (rIdx: number, key: string) => `${rIdx}-${key}`;
   const handleCopyCell = async (text: string, rIdx: number, key: string) => {
@@ -81,6 +109,62 @@ export default function MatchingPage() {
   };
   const isRemarkRow = (row: Record<string, string>) =>
     String(row['type'] ?? '').toUpperCase() === 'REMARK';
+
+  /** For item rows with match result: option 0 = main match, options 1–4 = top_5_matches[1..4]. */
+  const getMatchOptions = (rIdx: number): { index: number; titel: string; id: string; langtext: string }[] => {
+    const mr = matchResultsByRow[rIdx];
+    if (!mr) return [];
+    const opts: { index: number; titel: string; id: string; langtext: string }[] = [
+      {
+        index: 0,
+        titel: mr.matched_titel ?? '',
+        id: mr.matched_leistungs_id ?? mr.matched_source_id ?? '',
+        langtext: mr.matched_embed_text ?? '',
+      },
+    ];
+    const top5 = mr.top_5_matches ?? [];
+    for (let i = 1; i < 5 && i < top5.length; i++) {
+      const m = top5[i];
+      opts.push({ index: i, titel: m.titel, id: m.source_id, langtext: '' });
+    }
+    return opts;
+  };
+
+  /** Effective KFE DF values for this row and selected match index. */
+  const getKfeDfForRow = (rIdx: number): { id: string; kurztext: string; langtext: string; zeit: string } => {
+    const mr = matchResultsByRow[rIdx];
+    const sel = selectedMatchIndexByRow[rIdx] ?? 0;
+    if (!mr) return { id: '', kurztext: '', langtext: '', zeit: mr?.kfe_df_zeit ?? '' };
+    const opts = getMatchOptions(rIdx);
+    const chosen = opts[sel];
+    if (!chosen) {
+      return {
+        id: mr.matched_leistungs_id ?? mr.matched_source_id ?? '',
+        kurztext: mr.matched_titel ?? '',
+        langtext: mr.matched_embed_text ?? '',
+        zeit: mr.kfe_df_zeit ?? '',
+      };
+    }
+    return {
+      id: chosen.id,
+      kurztext: chosen.titel,
+      langtext: chosen.langtext || chosen.titel,
+      zeit: mr.kfe_df_zeit ?? '',
+    };
+  };
+
+  const setSelectedMatch = (rIdx: number, index: number) => {
+    setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: index }));
+    if (index === 0) {
+      setKfeFalschGrundByRow((prev) => {
+        const next = { ...prev };
+        delete next[rIdx];
+        return next;
+      });
+    } else {
+      setKfeFalschGrundByRow((prev) => ({ ...prev, [rIdx]: KFE_FALSCH_GRUND_OPTIONS[0] }));
+    }
+  };
 
   const tableRows = reviewData?.tableData?.rows ?? [];
   const sectionStartByRow = useMemo(
@@ -173,6 +257,17 @@ export default function MatchingPage() {
             setWebhookStatus('error');
             setSendingRowIndex(null);
             return;
+          }
+
+          try {
+            const data = await response.json();
+            const one = Array.isArray(data) ? data[0] : data;
+            if (one && typeof one === 'object') {
+              setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one as MatchResult }));
+              setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
+            }
+          } catch {
+            // non-JSON or invalid; leave row without match result
           }
 
           if (i < itemRowsWithIndex.length - 1) {
@@ -311,7 +406,7 @@ export default function MatchingPage() {
                       </th>
                     ))}
                   </tr>
-                  {/* Row 3: column names for all 21 columns */}
+                  {/* Row 3: column names */}
                   <tr>
                     {tableData.headers.map((h) => (
                       <th
@@ -346,9 +441,29 @@ export default function MatchingPage() {
                         {tableData.headers.map((key, colIdx) => {
                           const isMatchingCol = MATCHING_SECTION_KEYS.has(key);
                           const showSpinner = isMatchingCol && isThisRowSending;
-                          const text = showSpinner ? '' : String(row[key] ?? '');
-                          const long = !showSpinner && isLong(text);
+                          const matchResult = !remarkRow ? matchResultsByRow[rIdx] : undefined;
+                          const hasMatch = Boolean(matchResult);
+                          const kfeDf = hasMatch ? getKfeDfForRow(rIdx) : null;
+                          const selectedMatchIdx = selectedMatchIndexByRow[rIdx] ?? 0;
+                          const matchOptions = hasMatch ? getMatchOptions(rIdx) : [];
+                          const showFalschGrund = hasMatch && selectedMatchIdx !== 0;
+                          const falschGrundValue = kfeFalschGrundByRow[rIdx] ?? KFE_FALSCH_GRUND_OPTIONS[0];
+
+                          let displayText = showSpinner ? '' : String(row[key] ?? '');
+                          if (hasMatch && isMatchingCol && !showSpinner) {
+                            if (key === 'kfeDfId') displayText = kfeDf!.id;
+                            else if (key === 'kfeDfKurztext') displayText = kfeDf!.kurztext;
+                            else if (key === 'kfeDfLangtext') displayText = kfeDf!.langtext;
+                            else if (key === 'kfeDfZeit') displayText = kfeDf!.zeit;
+                            else if (key === 'kfeFalschGrund') displayText = showFalschGrund ? falschGrundValue : '';
+                          }
+
+                          const long = !showSpinner && isLong(displayText);
                           const isFirstCol = colIdx === 0;
+
+                          const isKfeDfId = key === 'kfeDfId';
+                          const isKfeFalschGrund = key === 'kfeFalschGrund';
+
                           return (
                             <td
                               key={key}
@@ -357,12 +472,47 @@ export default function MatchingPage() {
                               } hover:bg-gray-200 ${remarkRow ? 'hover:bg-gray-300' : ''} ${
                                 isFirstCol && remarkRow ? 'border-l-2 border-gray-400' : ''
                               } ${TEXT_COLUMN_KEYS.has(key) ? 'max-w-[220px]' : ''}`}
-                              title={rowExpanded ? undefined : text}
+                              title={rowExpanded ? undefined : displayText}
                               style={{ minWidth: 0, paddingLeft: isFirstCol ? 8 + indentPx : undefined }}
                             >
                               <div className="flex items-start justify-between gap-1 min-w-0">
                                 {showSpinner ? (
                                   <Loader2 className="w-4 h-4 text-gray-400 animate-spin flex-shrink-0" />
+                                ) : isKfeDfId && hasMatch && matchOptions.length > 0 ? (
+                                  <span className="flex flex-col gap-1 min-w-0 flex-1">
+                                    <select
+                                      value={selectedMatchIdx}
+                                      onChange={(e) => setSelectedMatch(rIdx, Number(e.target.value))}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-full max-w-full text-sm border border-gray-300 rounded px-2 py-1 bg-white truncate"
+                                      title="Match auswählen"
+                                    >
+                                      {matchOptions.map((opt) => (
+                                        <option key={opt.index} value={opt.index}>
+                                          {opt.titel}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <span className={`min-w-0 ${rowExpanded ? '' : 'truncate block'}`}>
+                                      {kfeDf!.id || '—'}
+                                    </span>
+                                  </span>
+                                ) : isKfeFalschGrund && showFalschGrund ? (
+                                  <select
+                                    value={falschGrundValue}
+                                    onChange={(e) =>
+                                      setKfeFalschGrundByRow((prev) => ({ ...prev, [rIdx]: e.target.value }))
+                                    }
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-full max-w-full text-sm border border-gray-300 rounded px-2 py-1 bg-white"
+                                    title="KFE Falsch Grund"
+                                  >
+                                    {KFE_FALSCH_GRUND_OPTIONS.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
                                 ) : isFirstCol && isSectionHeader ? (
                                   <span className="flex items-center gap-1 flex-shrink-0">
                                     {isCollapsed ? (
@@ -371,15 +521,15 @@ export default function MatchingPage() {
                                       <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
                                     )}
                                     <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
-                                      {text || '—'}
+                                      {displayText || '—'}
                                     </span>
                                   </span>
                                 ) : (
                                   <span className={`min-w-0 flex-1 ${rowExpanded ? '' : 'truncate block'}`}>
-                                    {text || '—'}
+                                    {displayText || '—'}
                                   </span>
                                 )}
-                                {!showSpinner && (
+                                {!showSpinner && !isKfeDfId && !(isKfeFalschGrund && showFalschGrund) && (
                                   <div className="flex items-center gap-0.5 flex-shrink-0">
                                     {long && key !== 'id' ? (
                                       <button
@@ -403,7 +553,7 @@ export default function MatchingPage() {
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleCopyCell(text, rIdx, key);
+                                        handleCopyCell(displayText, rIdx, key);
                                       }}
                                       className="p-0.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-opacity opacity-0 group-hover:opacity-100"
                                       title="In Zwischenablage kopieren"

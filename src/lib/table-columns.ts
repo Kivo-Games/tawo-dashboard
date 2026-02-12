@@ -38,11 +38,9 @@ const KFE_DF_COLUMNS: ColumnDef[] = [
 /** Group: KFE / DF – Subgroup: KFE Kit */
 const KFE_KIT_COLUMNS: ColumnDef[] = [
   { key: 'kfeFalschGrund', label: 'KFE Falsch Grund', group: 'KFE / DF', subgroup: 'KFE Kit' },
-  { key: 'kfeFit', label: 'KFE Fit', group: 'KFE / DF', subgroup: 'KFE Kit' },
-  { key: 'kfeFitLangtext', label: 'KFE Fit Langtext', group: 'KFE / DF', subgroup: 'KFE Kit' },
 ];
 
-/** All table columns in display order (21 columns). */
+/** All table columns in display order (19 columns). */
 export const TABLE_COLUMNS: ColumnDef[] = [
   ...LV_COLUMNS,
   ...TECH_COLUMNS,
@@ -76,7 +74,6 @@ export const TEXT_COLUMN_KEYS = new Set([
   'longText',
   'kfeDfKurztext',
   'kfeDfLangtext',
-  'kfeFitLangtext',
 ]);
 
 /** KFE columns that are main focus on matching (non-text): get medium width so they’re readable. */
@@ -84,7 +81,6 @@ export const KFE_MEDIUM_COLUMN_KEYS = new Set([
   'kfeDfId',
   'kfeDfZeit',
   'kfeFalschGrund',
-  'kfeFit',
 ]);
 
 /** All 7 KFE/DF columns – main focus on matching page alongside text columns. */
