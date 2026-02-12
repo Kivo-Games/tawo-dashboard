@@ -608,16 +608,16 @@ export default function MatchingPage() {
                                       onChange={(e) => setSelectedMatch(rIdx, Number(e.target.value))}
                                       onClick={(e) => e.stopPropagation()}
                                       className="w-full max-w-full text-sm border border-gray-300 rounded px-2 py-1 bg-white truncate"
-                                      title="Match auswählen"
+                                      title="KFE ID auswählen"
                                     >
                                       {matchOptions.map((opt) => (
                                         <option key={opt.index} value={opt.index}>
-                                          {opt.titel}
+                                          {opt.id || '—'}
                                         </option>
                                       ))}
                                     </select>
-                                    <span className={`min-w-0 ${rowExpanded ? '' : 'truncate block'}`}>
-                                      {kfeDf!.id || '—'}
+                                    <span className={`min-w-0 text-gray-500 text-xs ${rowExpanded ? '' : 'truncate block'}`}>
+                                      {kfeDf!.kurztext || '—'}
                                     </span>
                                   </span>
                                 ) : isKfeFalschGrund && showFalschGrund ? (
