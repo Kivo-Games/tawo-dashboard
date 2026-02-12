@@ -84,6 +84,7 @@ export default function MatchingPage() {
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
+  const [rerunTrigger, setRerunTrigger] = useState(0);
   /** Match result from API per table row index (only item rows). */
   const [matchResultsByRow, setMatchResultsByRow] = useState<Record<number, MatchResult>>({});
   /** Selected top_5 index (0 = main match, 1–4 = alternative). */
@@ -255,6 +256,8 @@ export default function MatchingPage() {
     setWebhookStatus('sending');
 
     const run = async () => {
+      const accumulatedResults: Record<number, MatchResult> = {};
+      const accumulatedSelections: Record<number, number> = {};
       try {
         for (let i = 0; i < itemRowsWithIndex.length; i++) {
           const { rIdx, row } = itemRowsWithIndex[i];
@@ -276,8 +279,8 @@ export default function MatchingPage() {
             const data = await response.json();
             const one = Array.isArray(data) ? data[0] : data;
             if (one && typeof one === 'object') {
-              setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one as MatchResult }));
-              setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
+              accumulatedResults[rIdx] = one as MatchResult;
+              accumulatedSelections[rIdx] = 0;
             }
           } catch {
             // non-JSON or invalid; leave row without match result
@@ -287,6 +290,8 @@ export default function MatchingPage() {
             await new Promise((r) => setTimeout(r, 100));
           }
         }
+        setMatchResultsByRow((prev) => ({ ...prev, ...accumulatedResults }));
+        setSelectedMatchIndexByRow((prev) => ({ ...prev, ...accumulatedSelections }));
         setSendingRowIndex(null);
         try {
           sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
@@ -298,7 +303,7 @@ export default function MatchingPage() {
       }
     };
     run();
-  }, [reviewData]);
+  }, [reviewData, rerunTrigger]);
 
   if (reviewData === null) {
     return (
@@ -324,10 +329,32 @@ export default function MatchingPage() {
 
   const { tableData, fileName } = reviewData;
 
+  const handleRerunMatches = () => {
+    try {
+      sessionStorage.removeItem(MATCHING_SENT_KEY);
+    } catch {}
+    setMatchResultsByRow({});
+    setSelectedMatchIndexByRow({});
+    setKfeFalschGrundByRow({});
+    setRerunTrigger((prev) => prev + 1);
+  };
+
   return (
     <div className="p-6 w-full max-w-full">
       <div className="w-full max-w-full">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-6">Matching läuft...</h1>
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <h1 className="text-2xl font-semibold text-gray-900">
+            {webhookStatus === 'sending' ? 'Matching läuft...' : 'Matching'}
+          </h1>
+          <button
+            type="button"
+            onClick={handleRerunMatches}
+            disabled={webhookStatus === 'sending'}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Matches erneut ausführen
+          </button>
+        </div>
 
         {/* Stats section – slowly animates out (slide up + fade) */}
         <div
