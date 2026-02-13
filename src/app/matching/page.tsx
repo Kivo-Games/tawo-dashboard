@@ -44,6 +44,27 @@ const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 
+/** Extract the single match result from various n8n/API response shapes. */
+function extractMatchResult(data: unknown): MatchResult | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  // Direct match object (has match fields at top level)
+  if ('matched_titel' in d || 'matched_leistungs_id' in d || 'top_5_matches' in d) {
+    return d as unknown as MatchResult;
+  }
+  // Array: take first element
+  if (Array.isArray(data)) {
+    const first = data[0];
+    return first && typeof first === 'object' ? extractMatchResult(first) : null;
+  }
+  // Wrapper: data.data, data.result, data.results[0], data.output
+  if (d.data != null) return extractMatchResult(d.data);
+  if (d.result != null) return extractMatchResult(d.result);
+  if (Array.isArray(d.results) && d.results[0] != null) return extractMatchResult(d.results[0]);
+  if (d.output != null) return extractMatchResult(d.output);
+  return null;
+}
+
 /** One option from the matching API top_5_matches. */
 export type TopMatch = {
   titel: string;
@@ -454,8 +475,6 @@ export default function MatchingPage() {
     setWebhookStatus('sending');
 
     const run = async () => {
-      const accumulatedResults: Record<number, MatchResult> = {};
-      const accumulatedSelections: Record<number, number> = {};
       try {
         for (let i = 0; i < itemRowsWithIndex.length; i++) {
           const { rIdx, row } = itemRowsWithIndex[i];
@@ -475,10 +494,10 @@ export default function MatchingPage() {
 
           try {
             const data = await response.json();
-            const one = Array.isArray(data) ? data[0] : data;
-            if (one && typeof one === 'object') {
-              accumulatedResults[rIdx] = one as MatchResult;
-              accumulatedSelections[rIdx] = 0;
+            const one = extractMatchResult(data);
+            if (one) {
+              setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one }));
+              setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
             }
           } catch {
             // non-JSON or invalid; leave row without match result
@@ -488,8 +507,6 @@ export default function MatchingPage() {
             await new Promise((r) => setTimeout(r, 100));
           }
         }
-        setMatchResultsByRow((prev) => ({ ...prev, ...accumulatedResults }));
-        setSelectedMatchIndexByRow((prev) => ({ ...prev, ...accumulatedSelections }));
         setSendingRowIndex(null);
         try {
           sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
