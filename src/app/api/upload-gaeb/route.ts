@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const WEBHOOK_URL = 'https://n8n.kivosoftware.de/webhook/gaeb/x83-to-csv';
+const WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/gaeb/x83-to-csv';
 
 export async function POST(request: NextRequest) {
   try {
