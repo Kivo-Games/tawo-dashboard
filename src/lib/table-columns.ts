@@ -33,6 +33,8 @@ const KFE_DF_COLUMNS: ColumnDef[] = [
   { key: 'kfeDfKurztext', label: 'KFE DF Kurztext', group: 'KFE / DF', subgroup: 'Deal Fusion Match' },
   { key: 'kfeDfLangtext', label: 'KFE DF Langtext', group: 'KFE / DF', subgroup: 'Deal Fusion Match' },
   { key: 'kfeDfZeit', label: 'KFE DF Zeit', group: 'KFE / DF', subgroup: 'Deal Fusion Match' },
+  { key: 'kfeDfMaterialkosten', label: 'Materialkosten', group: 'KFE / DF', subgroup: 'Deal Fusion Match' },
+  { key: 'kfeDfKategorie', label: 'Kategorie', group: 'KFE / DF', subgroup: 'Deal Fusion Match' },
 ];
 
 /** Group: KFE / DF – Subgroup: KFE Kit */
@@ -80,6 +82,8 @@ export const TEXT_COLUMN_KEYS = new Set([
 export const KFE_MEDIUM_COLUMN_KEYS = new Set([
   'kfeDfId',
   'kfeDfZeit',
+  'kfeDfMaterialkosten',
+  'kfeDfKategorie',
   'kfeFalschGrund',
 ]);
 

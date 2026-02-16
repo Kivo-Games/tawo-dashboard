@@ -44,28 +44,38 @@ const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 
-/** Extract the single match result from various n8n/API response shapes. */
-function extractMatchResult(data: unknown): MatchResult | null {
-  if (!data || typeof data !== 'object') return null;
-  const d = data as Record<string, unknown>;
-  // Direct match object (has match fields at top level)
-  if ('matched_titel' in d || 'matched_leistungs_id' in d || 'top_5_matches' in d) {
-    return d as unknown as MatchResult;
-  }
-  // Array: take first element
-  if (Array.isArray(data)) {
-    const first = data[0];
-    return first && typeof first === 'object' ? extractMatchResult(first) : null;
-  }
-  // Wrapper: data.data, data.result, data.results[0], data.output
-  if (d.data != null) return extractMatchResult(d.data);
-  if (d.result != null) return extractMatchResult(d.result);
-  if (Array.isArray(d.results) && d.results[0] != null) return extractMatchResult(d.results[0]);
-  if (d.output != null) return extractMatchResult(d.output);
-  return null;
-}
+/** Leistung block from kfe_merged (KFE/DF source). */
+export type KfeMergedLeistung = {
+  Leistungs_ID?: string;
+  Chapter_Identifier?: string;
+  Kapitel?: string;
+  Kategorie?: string;
+  Subkategorie?: string;
+  Kurzbeschreibung?: string;
+  Leistungsbeschreibung?: string;
+  Netto_Minuten_per_1unit?: string;
+  Materialkosten?: string;
+};
 
-/** One option from the matching API top_5_matches. */
+/** One entry in kfe_merged from the new matching webhook response. */
+export type KfeMergedEntry = {
+  source_id: string;
+  leistungs_id: string;
+  combined_score: number;
+  artikel?: Record<string, unknown>;
+  leistung?: KfeMergedLeistung;
+};
+
+/** New webhook response: one object per row with kfe_merged. */
+export type MatchingRowResponse = {
+  lv_row_id?: string;
+  match_found?: boolean;
+  best_match?: Record<string, unknown>;
+  top_5_matches?: unknown[];
+  kfe_merged?: KfeMergedEntry[];
+};
+
+/** One option from the matching API top_5_matches (legacy). */
 export type TopMatch = {
   titel: string;
   source_id: string;
@@ -81,9 +91,36 @@ export type MatchResult = {
   matched_source_id?: string;
   match_status?: string;
   top_5_matches?: TopMatch[];
-  /** If present, use for KFE DF Zeit */
+  /** If present, use for KFE DF Zeit (legacy). */
   kfe_df_zeit?: string;
+  /** New format: merged KFE options with leistung/artikel. */
+  kfe_merged?: KfeMergedEntry[];
 };
+
+/** Extract the single match result from various n8n/API response shapes. */
+function extractMatchResult(data: unknown): MatchResult | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  // New format: has kfe_merged array
+  if (Array.isArray(d.kfe_merged) && d.kfe_merged.length > 0) {
+    return d as unknown as MatchResult;
+  }
+  // Legacy: direct match object (has match fields at top level)
+  if ('matched_titel' in d || 'matched_leistungs_id' in d || 'top_5_matches' in d) {
+    return d as unknown as MatchResult;
+  }
+  // Array: take first element
+  if (Array.isArray(data)) {
+    const first = data[0];
+    return first && typeof first === 'object' ? extractMatchResult(first) : null;
+  }
+  // Wrapper: data.data, data.result, data.results[0], data.output
+  if (d.data != null) return extractMatchResult(d.data);
+  if (d.result != null) return extractMatchResult(d.result);
+  if (Array.isArray(d.results) && d.results[0] != null) return extractMatchResult(d.results[0]);
+  if (d.output != null) return extractMatchResult(d.output);
+  return null;
+}
 
 type TableData = {
   headers: string[];
@@ -146,46 +183,99 @@ export default function MatchingPage() {
   const isRemarkRow = (row: Record<string, string>) =>
     String(row['type'] ?? '').toUpperCase() === 'REMARK';
 
-  /** For item rows with match result: option 0 = main match, options 1–4 = top_5_matches[1..4]. */
-  const getMatchOptions = (rIdx: number): { index: number; titel: string; id: string; langtext: string }[] => {
+  /** For item rows with match result: options from kfe_merged, or legacy best_match + top_5_matches. */
+  const getMatchOptions = (rIdx: number): { index: number; titel: string; id: string; idWithScore: string; langtext: string }[] => {
     const mr = matchResultsByRow[rIdx];
     if (!mr) return [];
-    const opts: { index: number; titel: string; id: string; langtext: string }[] = [
+    const kfe = mr.kfe_merged;
+    if (Array.isArray(kfe) && kfe.length > 0) {
+      return kfe.map((entry, i) => {
+        const leistung = entry.leistung;
+        const scorePct = (entry.combined_score * 100).toFixed(1);
+        return {
+          index: i,
+          titel: leistung?.Kurzbeschreibung ?? '',
+          id: entry.leistungs_id,
+          idWithScore: `${entry.leistungs_id} (${scorePct}%)`,
+          langtext: leistung?.Leistungsbeschreibung ?? '',
+        };
+      });
+    }
+    const opts: { index: number; titel: string; id: string; idWithScore: string; langtext: string }[] = [
       {
         index: 0,
         titel: mr.matched_titel ?? '',
         id: mr.matched_leistungs_id ?? mr.matched_source_id ?? '',
+        idWithScore: mr.matched_leistungs_id ?? mr.matched_source_id ?? '',
         langtext: mr.matched_embed_text ?? '',
       },
     ];
     const top5 = mr.top_5_matches ?? [];
     for (let i = 1; i < 5 && i < top5.length; i++) {
       const m = top5[i];
-      opts.push({ index: i, titel: m.titel, id: m.source_id, langtext: '' });
+      opts.push({ index: i, titel: m.titel, id: m.source_id, idWithScore: m.source_id, langtext: '' });
     }
     return opts;
   };
 
-  /** Effective KFE DF values for this row and selected match index. */
-  const getKfeDfForRow = (rIdx: number): { id: string; kurztext: string; langtext: string; zeit: string } => {
+  /** Effective KFE DF values for this row and selected match index (from kfe_merged or legacy). */
+  const getKfeDfForRow = (rIdx: number): {
+    id: string;
+    idWithScore: string;
+    kurztext: string;
+    langtext: string;
+    zeit: string;
+    materialkosten: string;
+    kategorie: string;
+  } => {
+    const empty = {
+      id: '',
+      idWithScore: '',
+      kurztext: '',
+      langtext: '',
+      zeit: '',
+      materialkosten: '',
+      kategorie: '',
+    };
     const mr = matchResultsByRow[rIdx];
     const sel = selectedMatchIndexByRow[rIdx] ?? 0;
-    if (!mr) return { id: '', kurztext: '', langtext: '', zeit: '' };
+    if (!mr) return empty;
+    const kfe = mr.kfe_merged;
+    if (Array.isArray(kfe) && kfe[sel]) {
+      const entry = kfe[sel];
+      const leistung = entry.leistung ?? {};
+      const scorePct = (entry.combined_score * 100).toFixed(1);
+      return {
+        id: entry.leistungs_id,
+        idWithScore: `${entry.leistungs_id} (${scorePct}%)`,
+        kurztext: leistung.Kurzbeschreibung ?? '',
+        langtext: leistung.Leistungsbeschreibung ?? '',
+        zeit: leistung.Netto_Minuten_per_1unit ?? '',
+        materialkosten: leistung.Materialkosten ?? '',
+        kategorie: leistung.Kategorie ?? '',
+      };
+    }
     const opts = getMatchOptions(rIdx);
     const chosen = opts[sel];
     if (!chosen) {
       return {
         id: mr.matched_leistungs_id ?? mr.matched_source_id ?? '',
+        idWithScore: mr.matched_leistungs_id ?? mr.matched_source_id ?? '',
         kurztext: mr.matched_titel ?? '',
         langtext: mr.matched_embed_text ?? '',
         zeit: mr.kfe_df_zeit ?? '',
+        materialkosten: '',
+        kategorie: '',
       };
     }
     return {
       id: chosen.id,
+      idWithScore: chosen.idWithScore,
       kurztext: chosen.titel,
       langtext: chosen.langtext || chosen.titel,
       zeit: mr.kfe_df_zeit ?? '',
+      materialkosten: '',
+      kategorie: '',
     };
   };
 
@@ -254,6 +344,8 @@ export default function MatchingPage() {
             if (key === 'kfeDfKurztext') return kfeDf?.kurztext ?? row[key] ?? '';
             if (key === 'kfeDfLangtext') return kfeDf?.langtext ?? row[key] ?? '';
             if (key === 'kfeDfZeit') return kfeDf?.zeit ?? row[key] ?? '';
+            if (key === 'kfeDfMaterialkosten') return kfeDf?.materialkosten ?? row[key] ?? '';
+            if (key === 'kfeDfKategorie') return kfeDf?.kategorie ?? row[key] ?? '';
             if (key === 'kfeFalschGrund') return showFalsch ? falschVal : '';
           }
           return String(row[key] ?? '');
@@ -287,6 +379,8 @@ export default function MatchingPage() {
             else if (key === 'kfeDfKurztext') val = kfeDf?.kurztext ?? row[key] ?? '';
             else if (key === 'kfeDfLangtext') val = kfeDf?.langtext ?? row[key] ?? '';
             else if (key === 'kfeDfZeit') val = kfeDf?.zeit ?? row[key] ?? '';
+            else if (key === 'kfeDfMaterialkosten') val = kfeDf?.materialkosten ?? row[key] ?? '';
+            else if (key === 'kfeDfKategorie') val = kfeDf?.kategorie ?? row[key] ?? '';
             else if (key === 'kfeFalschGrund') val = showFalsch ? falschVal : '';
             else val = String(row[key] ?? '');
           } else val = String(row[key] ?? '');
@@ -858,10 +952,12 @@ export default function MatchingPage() {
 
                             let displayText = showSpinner ? '' : String(row[key] ?? '');
                             if (hasMatch && isMatchingCol && !showSpinner) {
-                              if (key === 'kfeDfId') displayText = kfeDf!.id;
+                              if (key === 'kfeDfId') displayText = kfeDf!.idWithScore || kfeDf!.id;
                               else if (key === 'kfeDfKurztext') displayText = kfeDf!.kurztext;
                               else if (key === 'kfeDfLangtext') displayText = kfeDf!.langtext;
                               else if (key === 'kfeDfZeit') displayText = kfeDf!.zeit;
+                              else if (key === 'kfeDfMaterialkosten') displayText = kfeDf!.materialkosten;
+                              else if (key === 'kfeDfKategorie') displayText = kfeDf!.kategorie;
                               else if (key === 'kfeFalschGrund') displayText = showFalschGrund ? falschGrundValue : '';
                             }
 
@@ -918,7 +1014,7 @@ export default function MatchingPage() {
                                     >
                                       {matchOptions.map((opt) => (
                                         <option key={opt.index} value={opt.index}>
-                                          {opt.id || '—'}
+                                          {opt.idWithScore || opt.id || '—'}
                                         </option>
                                       ))}
                                     </select>
