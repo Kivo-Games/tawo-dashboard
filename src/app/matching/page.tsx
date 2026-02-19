@@ -43,6 +43,7 @@ const KFE_MEDIUM_WIDTH = 140;
 const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
+const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook-test/confirmed-match';
 
 /** Leistung block from kfe_merged (KFE/DF source). */
 export type KfeMergedLeistung = {
@@ -216,6 +217,38 @@ export default function MatchingPage() {
       opts.push({ index: i, titel: m.titel, id: m.source_id, idWithScore: m.source_id, langtext: '' });
     }
     return opts;
+  };
+
+  /** Full match entry for a row at given option index (for webhook payload). */
+  const getMatchEntryForOption = (
+    rIdx: number,
+    optionIndex: number
+  ): KfeMergedEntry | Record<string, unknown> | null => {
+    const mr = matchResultsByRow[rIdx];
+    if (!mr) return null;
+    const kfe = mr.kfe_merged;
+    if (Array.isArray(kfe) && kfe[optionIndex]) return kfe[optionIndex];
+    const opts = getMatchOptions(rIdx);
+    const opt = opts[optionIndex];
+    if (!opt) {
+      if (optionIndex === 0) {
+        return {
+          leistungs_id: mr.matched_leistungs_id ?? mr.matched_source_id,
+          source_id: mr.matched_source_id,
+          combined_score: 0,
+          titel: mr.matched_titel,
+          langtext: mr.matched_embed_text,
+        };
+      }
+      return null;
+    }
+    return {
+      leistungs_id: opt.id,
+      source_id: opt.id,
+      combined_score: 0,
+      titel: opt.titel,
+      langtext: opt.langtext,
+    };
   };
 
   /** Effective KFE DF values for this row and selected match index (from kfe_merged or legacy). */
@@ -411,6 +444,13 @@ export default function MatchingPage() {
   };
 
   const setSelectedMatch = (rIdx: number, index: number) => {
+    const oldIndex = selectedMatchIndexByRow[rIdx] ?? 0;
+    if (oldIndex === index) return;
+
+    const row = reviewData?.tableData?.rows[rIdx];
+    const oldMatch = getMatchEntryForOption(rIdx, oldIndex);
+    const correctedMatch = getMatchEntryForOption(rIdx, index);
+
     setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: index }));
     if (index === 0) {
       setKfeFalschGrundByRow((prev) => {
@@ -420,6 +460,20 @@ export default function MatchingPage() {
       });
     } else {
       setKfeFalschGrundByRow((prev) => ({ ...prev, [rIdx]: KFE_FALSCH_GRUND_OPTIONS[0] }));
+    }
+
+    if (row && oldMatch != null && correctedMatch != null) {
+      const payload = {
+        ...row,
+        corrected_match: correctedMatch,
+        old_match: oldMatch,
+        ...(index !== 0 && { kfe_falsch_grund: KFE_FALSCH_GRUND_OPTIONS[0] }),
+      };
+      fetch(CONFIRMED_MATCH_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).catch((err) => console.error('Confirmed-match webhook failed:', err));
     }
   };
 
