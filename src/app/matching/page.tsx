@@ -43,7 +43,7 @@ const KFE_MEDIUM_WIDTH = 140;
 const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
-const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook-test/confirmed-match';
+const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirmed-match';
 
 /** Leistung block from kfe_merged (KFE/DF source). */
 export type KfeMergedLeistung = {
