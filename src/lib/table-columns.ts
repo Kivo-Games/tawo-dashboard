@@ -198,12 +198,22 @@ TABLE_COLUMNS.forEach((c) => {
 
 // --- Section / REMARK (Hinweis) helpers for GAEB hierarchy ---
 
+/** Path segments from Ordnungszahl (e.g. "1.2.3" -> ["1","2","3"]). */
+export function getPathSegments(rNoPart: string): string[] {
+  const s = String(rNoPart ?? '').trim();
+  if (!s) return [];
+  return s.split(/[.\s]+/).filter(Boolean);
+}
+
 /** Path level from Ordnungszahl (e.g. "1.2.3" -> 3, "01.02" -> 2). */
 export function getPathLevel(rNoPart: string): number {
-  const s = String(rNoPart ?? '').trim();
-  if (!s) return 0;
-  const segments = s.split(/[.\s]+/).filter(Boolean);
-  return segments.length;
+  return getPathSegments(rNoPart).length;
+}
+
+/** True if prefixSegments is a path prefix of fullSegments (e.g. [1,1] is prefix of [1,1,2]). */
+export function isPathPrefix(prefixSegments: string[], fullSegments: string[]): boolean {
+  if (prefixSegments.length > fullSegments.length) return false;
+  return prefixSegments.every((s, i) => s === fullSegments[i]);
 }
 
 /** Indent in px: REMARK rows get 0 so they stick out; items get level * indentPerLevel. */

@@ -12,6 +12,8 @@ import {
   getGroupHeaders,
   getKfeSubgroupHeaders,
   getPathLevel,
+  getPathSegments,
+  isPathPrefix,
   buildSectionStartByRowIndex,
   buildSectionRanges,
   SECTION_INDENT_REMARK_PX,
@@ -34,6 +36,37 @@ function getMatchingSentKey(data: ReviewData): string {
   const rows = data?.tableData?.rows;
   const firstId = rows?.[0]?.['id'] ?? '';
   return `${data.fileName ?? ''}-${rows?.length ?? 0}-${firstId}`;
+}
+
+/** Remark rows apply to item rows whose rNoPart has the remark's rNoPart as path prefix (e.g. remark 1.1 → items 1.1.1, 1.1.2). */
+function getRemarksForItemRow(
+  rows: Record<string, string>[],
+  itemRow: Record<string, string>,
+  isRemarkRow: (row: Record<string, string>) => boolean
+): Record<string, string>[] {
+  const itemPath = getPathSegments(String(itemRow['rNoPart'] ?? ''));
+  const remarkRows: { row: Record<string, string>; pathSegments: string[] }[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    if (!isRemarkRow(r)) continue;
+    const segs = getPathSegments(String(r['rNoPart'] ?? ''));
+    if (segs.length > 0 && isPathPrefix(segs, itemPath)) remarkRows.push({ row: r, pathSegments: segs });
+  }
+  remarkRows.sort((a, b) => a.pathSegments.length - b.pathSegments.length);
+  return remarkRows.map((x) => x.row);
+}
+
+/** Build webhook rows: [ fileInfo, ...remark rows, item row ]. */
+function buildMatchingPayloadRows(
+  rows: Record<string, string>[],
+  itemRow: Record<string, string>,
+  fileId: string,
+  fileName: string,
+  isRemarkRow: (row: Record<string, string>) => boolean
+): (Record<string, string> | { id: string; name: string })[] {
+  const fileInfo = { id: fileId, name: fileName };
+  const remarks = getRemarksForItemRow(rows, itemRow, isRemarkRow);
+  return [fileInfo, ...remarks, itemRow];
 }
 
 const COL_MIN_COMPACT = 36;
@@ -622,16 +655,20 @@ export default function MatchingPage() {
 
     setWebhookStatus('sending');
 
+    const fileId = getMatchingSentKey(reviewData);
+    const fileName = reviewData.fileName ?? '';
+
     const run = async () => {
       try {
         for (let i = 0; i < itemRowsWithIndex.length; i++) {
           const { rIdx, row } = itemRowsWithIndex[i];
           setSendingRowIndex(rIdx);
 
+          const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
           const response = await fetch(MATCHING_API_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rows: [row] }),
+            body: JSON.stringify({ rows: payloadRows }),
           });
 
           if (!response.ok) {
