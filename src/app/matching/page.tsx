@@ -38,7 +38,7 @@ function getMatchingSentKey(data: ReviewData): string {
   return `${data.fileName ?? ''}-${rows?.length ?? 0}-${firstId}`;
 }
 
-/** Remark rows apply to item rows whose rNoPart has the remark's rNoPart as path prefix (e.g. remark 1.1 → items 1.1.1, 1.1.2). */
+/** Remark rows apply to item rows whose rNoPart (dotted notation, e.g. 1.1, 1.2.1) has the remark's rNoPart as path prefix (e.g. remark 1.1 → items 1.1.1, 1.1.2). */
 function getRemarksForItemRow(
   rows: Record<string, string>[],
   itemRow: Record<string, string>,

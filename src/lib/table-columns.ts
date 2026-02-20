@@ -197,15 +197,28 @@ TABLE_COLUMNS.forEach((c) => {
 });
 
 // --- Section / REMARK (Hinweis) helpers for GAEB hierarchy ---
+// Hierarchy is based on dotted notation (1.1, 1.2, 1.2.1, 1.2.2). Indentation and
+// remark→item mapping use path segments derived from this.
 
-/** Path segments from Ordnungszahl (e.g. "1.2.3" -> ["1","2","3"]). */
-export function getPathSegments(rNoPart: string): string[] {
+/** Normalize Ordnungszahl to dotted path (e.g. "1 > 2 > 1" → "1.2.1"). Assumes dotted notation from the flow; normalizes alternate separators. */
+export function normalizeToDottedPath(rNoPart: string): string {
   const s = String(rNoPart ?? '').trim();
-  if (!s) return [];
-  return s.split(/[.\s]+/).filter(Boolean);
+  if (!s) return '';
+  return s
+    .replace(/\s*>\s*/g, '.')
+    .replace(/[\s,;]+/g, '.')
+    .replace(/\.+/g, '.')
+    .replace(/^\.|\.$/g, '');
 }
 
-/** Path level from Ordnungszahl (e.g. "1.2.3" -> 3, "01.02" -> 2). */
+/** Path segments from Ordnungszahl in dotted notation (e.g. "1.2.3" -> ["1","2","3"]). */
+export function getPathSegments(rNoPart: string): string[] {
+  const dotted = normalizeToDottedPath(rNoPart);
+  if (!dotted) return [];
+  return dotted.split('.').filter(Boolean);
+}
+
+/** Path level from Ordnungszahl (e.g. "1.2.3" -> 3). Used for indentation. */
 export function getPathLevel(rNoPart: string): number {
   return getPathSegments(rNoPart).length;
 }
