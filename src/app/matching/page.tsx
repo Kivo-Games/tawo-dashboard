@@ -79,7 +79,7 @@ const MATCHING_API_URL = '/api/matching-webhook';
 const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirmed-match';
 /** Client and server wait up to 25 minutes per matching request (524/timeouts ignored, row stays without result). */
 const MATCHING_REQUEST_TIMEOUT_MS = 25 * 60 * 1000;
-const MATCHING_CONCURRENCY = 15;
+const MATCHING_CONCURRENCY = 5;
 const DELAY_BETWEEN_STARTS_MS = 100;
 
 /** Leistung block from kfe_merged (KFE/DF source). */
@@ -675,10 +675,16 @@ export default function MatchingPage() {
 
     const runSend = async (itemRowsToSend: { rIdx: number; row: Record<string, string> }[], setSentKeyWhenDone: boolean) => {
       alreadySentDoneSyncedRef.current = false;
-      const itemIndices = new Set(itemRowsToSend.map(({ rIdx }) => rIdx));
-      setSendingRowIndices(itemIndices);
+      setSendingRowIndices(new Set());
       setWebhookStatus('sending');
 
+      const addSending = (rIdx: number) => {
+        setSendingRowIndices((prev) => {
+          const next = new Set(prev);
+          next.add(rIdx);
+          return next;
+        });
+      };
       const removeSending = (rIdx: number) => {
         setSendingRowIndices((prev) => {
           const next = new Set(prev);
@@ -694,6 +700,7 @@ export default function MatchingPage() {
           if (i >= itemRowsToSend.length) return;
           await new Promise((r) => setTimeout(r, DELAY_BETWEEN_STARTS_MS));
           const { rIdx, row } = itemRowsToSend[i];
+          addSending(rIdx);
           const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
           const body = { rows: payloadRows };
           const controller = new AbortController();
@@ -727,6 +734,7 @@ export default function MatchingPage() {
       const numWorkers = Math.min(MATCHING_CONCURRENCY, itemRowsToSend.length);
       const workers = Array.from({ length: numWorkers }, () => sendOne());
       Promise.all(workers).then(() => {
+        setSendingRowIndices(new Set());
         if (setSentKeyWhenDone) {
           try {
             sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
