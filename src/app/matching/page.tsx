@@ -185,6 +185,9 @@ export default function MatchingPage() {
   const lastRetryTriggerRef = useRef(0);
   /** Avoid re-starting initial send on every re-render (runSend sets state and would re-trigger effect). */
   const initialSendStartedForTriggerRef = useRef<number | null>(null);
+  /** Only sync webhookStatus to 'done' once when alreadySent, to avoid effect→setState→re-render loops. */
+  const alreadySentDoneSyncedRef = useRef(false);
+  const lastSentKeyRef = useRef<string | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
@@ -641,6 +644,10 @@ export default function MatchingPage() {
     if (!reviewData?.tableData?.rows?.length) return;
 
     const sentKey = getMatchingSentKey(reviewData);
+    if (lastSentKeyRef.current !== sentKey) {
+      lastSentKeyRef.current = sentKey;
+      alreadySentDoneSyncedRef.current = false;
+    }
     const alreadySent = typeof window !== 'undefined' && sessionStorage.getItem(MATCHING_SENT_KEY) === sentKey;
     const rows = reviewData.tableData.rows;
     const allItemRowsWithIndex = rows
@@ -651,6 +658,7 @@ export default function MatchingPage() {
     const fileName = reviewData.fileName ?? '';
 
     const runSend = (itemRowsToSend: { rIdx: number; row: Record<string, string> }[], setSentKeyWhenDone: boolean) => {
+      alreadySentDoneSyncedRef.current = false;
       const itemIndices = new Set(itemRowsToSend.map(({ rIdx }) => rIdx));
       setSendingRowIndices(itemIndices);
       setWebhookStatus('sending');
@@ -695,7 +703,7 @@ export default function MatchingPage() {
             sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
           } catch {}
         }
-        setWebhookStatus('done');
+        setWebhookStatus((prev) => (prev === 'done' ? prev : 'done'));
       });
     };
 
@@ -704,7 +712,7 @@ export default function MatchingPage() {
       lastRetryTriggerRef.current = retryMissingTrigger;
       const missing = allItemRowsWithIndex.filter(({ rIdx }) => !matchResultsByRow[rIdx]);
       if (missing.length === 0) {
-        setWebhookStatus('done');
+        setWebhookStatus((prev) => (prev === 'done' ? prev : 'done'));
         return;
       }
       runSend(missing, false);
@@ -712,12 +720,15 @@ export default function MatchingPage() {
     }
 
     if (alreadySent) {
-      setWebhookStatus('done');
+      if (!alreadySentDoneSyncedRef.current) {
+        alreadySentDoneSyncedRef.current = true;
+        setWebhookStatus('done');
+      }
       return;
     }
 
     if (allItemRowsWithIndex.length === 0) {
-      setWebhookStatus('done');
+      setWebhookStatus((prev) => (prev === 'done' ? prev : 'done'));
       try {
         sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
       } catch {}
