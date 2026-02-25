@@ -77,8 +77,8 @@ const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirmed-match';
-/** Client and server wait up to 5 minutes per matching request (524/timeouts ignored, row stays without result). */
-const MATCHING_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+/** Client and server wait up to 25 minutes per matching request (524/timeouts ignored, row stays without result). */
+const MATCHING_REQUEST_TIMEOUT_MS = 25 * 60 * 1000;
 const MATCHING_CONCURRENCY = 15;
 const DELAY_BETWEEN_STARTS_MS = 100;
 

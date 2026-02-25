@@ -3,10 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 const MATCHING_WEBHOOK_PRODUCTION =
   'https://tawo.app.n8n.cloud/webhook/f00e3175-721e-450b-b48c-fd0f6faa2d6d';
 
-/** Wait up to 5 minutes for n8n; 524/timeouts are ignored on the client (row stays without result). */
-const UPSTREAM_TIMEOUT_MS = 5 * 60 * 1000;
+/** Wait up to 25 minutes for n8n; 524/timeouts are ignored on the client (row stays without result). */
+const UPSTREAM_TIMEOUT_MS = 25 * 60 * 1000;
 
-export const maxDuration = 300; // 5 minutes (Vercel/hosting)
+export const maxDuration = 1500; // 25 minutes (Vercel/hosting)
 
 export async function POST(request: NextRequest) {
   try {
