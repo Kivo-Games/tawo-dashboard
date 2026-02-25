@@ -183,6 +183,8 @@ export default function MatchingPage() {
   /** Incremented when user chooses "rerun only missing"; effect runs retry for rows without result. */
   const [retryMissingTrigger, setRetryMissingTrigger] = useState(0);
   const lastRetryTriggerRef = useRef(0);
+  /** Avoid re-starting initial send on every re-render (runSend sets state and would re-trigger effect). */
+  const initialSendStartedForTriggerRef = useRef<number | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
@@ -722,6 +724,9 @@ export default function MatchingPage() {
       return;
     }
 
+    // Only start initial send once per rerunTrigger; runSend sets state and would otherwise re-run effect
+    if (initialSendStartedForTriggerRef.current === rerunTrigger) return;
+    initialSendStartedForTriggerRef.current = rerunTrigger;
     runSend(allItemRowsWithIndex, true);
   }, [reviewData, rerunTrigger, retryMissingTrigger]);
 
