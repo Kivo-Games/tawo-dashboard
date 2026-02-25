@@ -81,6 +81,7 @@ const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirme
 const MATCHING_REQUEST_TIMEOUT_MS = 25 * 60 * 1000;
 const MATCHING_CONCURRENCY = 5;
 const DELAY_BETWEEN_STARTS_MS = 100;
+const MATCHING_MAX_RETRIES = 3;
 
 function formatAverageResponseTime(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;
@@ -705,16 +706,19 @@ export default function MatchingPage() {
         });
       };
 
-      let nextIndex = 0;
+      type QueueItem = { rIdx: number; row: Record<string, string>; attempt: number };
+      const queue: QueueItem[] = itemRowsToSend.map(({ rIdx, row }) => ({ rIdx, row, attempt: 1 }));
+
       const sendOne = async (): Promise<void> => {
         try {
           while (true) {
-            const i = nextIndex++;
-            if (i >= itemRowsToSend.length) return;
+            const item = queue.shift();
+            if (!item) return;
             await new Promise((r) => setTimeout(r, DELAY_BETWEEN_STARTS_MS));
-            const { rIdx, row } = itemRowsToSend[i];
+            const { rIdx, row, attempt } = item;
             addSending(rIdx);
             const requestStartMs = Date.now();
+            let succeeded = false;
             let timeoutId: ReturnType<typeof setTimeout> | null = null;
             try {
               const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
@@ -738,17 +742,21 @@ export default function MatchingPage() {
               if (one) {
                 setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one }));
                 setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
+                succeeded = true;
               }
             } catch {
-              // Timeout, 524, network error, parse error, or payload build error: leave row without result
+              // Timeout, 524, network error, parse error, or payload build error
             } finally {
               if (timeoutId != null) clearTimeout(timeoutId);
               const durationMs = Date.now() - requestStartMs;
               setMatchingRunStats((prev) => ({
-                completed: prev.completed + 1,
+                completed: prev.completed + (succeeded || attempt >= MATCHING_MAX_RETRIES ? 1 : 0),
                 totalResponseMs: prev.totalResponseMs + durationMs,
               }));
               removeSending(rIdx);
+              if (!succeeded && attempt < MATCHING_MAX_RETRIES) {
+                queue.push({ rIdx, row, attempt: attempt + 1 });
+              }
             }
           }
         } catch {
