@@ -685,21 +685,28 @@ export default function MatchingPage() {
         });
       };
 
-      Promise.allSettled(
-        itemRowsToSend.map(async ({ rIdx, row }) => {
+      const DELAY_BETWEEN_REQUESTS_MS = 100;
+      const promises: Promise<void>[] = [];
+      for (let i = 0; i < itemRowsToSend.length; i++) {
+        const { rIdx, row } = itemRowsToSend[i];
+        const p = (async () => {
           const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
+          const body = { rows: payloadRows };
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), MATCHING_REQUEST_TIMEOUT_MS);
           try {
             const response = await fetch(MATCHING_API_URL, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ rows: payloadRows }),
+              body: JSON.stringify(body),
               signal: controller.signal,
             });
             clearTimeout(timeoutId);
             if (!response.ok) return;
-            const data = await response.json();
+            const contentType = response.headers.get('content-type') || '';
+            const text = await response.text();
+            if (!text || !contentType.includes('application/json')) return;
+            const data = JSON.parse(text);
             const one = extractMatchResult(data);
             if (one) {
               setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one }));
@@ -710,8 +717,13 @@ export default function MatchingPage() {
           } finally {
             removeSending(rIdx);
           }
-        })
-      ).then(() => {
+        })();
+        promises.push(p);
+        if (i < itemRowsToSend.length - 1) {
+          await new Promise((r) => setTimeout(r, DELAY_BETWEEN_REQUESTS_MS));
+        }
+      }
+      Promise.allSettled(promises).then(() => {
         if (setSentKeyWhenDone) {
           try {
             sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);

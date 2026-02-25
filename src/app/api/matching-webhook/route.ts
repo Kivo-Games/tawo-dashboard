@@ -10,9 +10,17 @@ export const maxDuration = 900; // 15 minutes (Vercel/hosting)
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid or missing JSON body' },
+        { status: 400 }
+      );
+    }
 
-    if (!body || typeof body !== 'object' || !Array.isArray((body as any).rows)) {
+    if (!body || typeof body !== 'object' || !Array.isArray((body as Record<string, unknown>).rows)) {
       return NextResponse.json(
         { error: 'Expected JSON body with { rows: [...] }' },
         { status: 400 }
@@ -20,6 +28,12 @@ export async function POST(request: NextRequest) {
     }
 
     const payload = JSON.stringify(body);
+    if (payload.length < 10) {
+      return NextResponse.json(
+        { error: 'Body too small or empty' },
+        { status: 400 }
+      );
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
 
@@ -33,7 +47,7 @@ export async function POST(request: NextRequest) {
     clearTimeout(timeoutId);
 
     const upstreamContentType = upstream.headers.get('content-type') || '';
-    const upstreamText = await upstream.text();
+    const upstreamText = (await upstream.text()).trim();
 
     console.log(
       'Matching webhook upstream:',
@@ -45,19 +59,17 @@ export async function POST(request: NextRequest) {
     );
 
     if (!upstream.ok) {
-      // include upstream body for debugging (trim if needed)
       return NextResponse.json(
-        { error: `Webhook returned ${upstream.status}`, upstream: upstreamText },
+        { error: `Webhook returned ${upstream.status}`, upstream: upstreamText || undefined },
         { status: upstream.status }
       );
     }
 
     // If upstream returns JSON, forward it as JSON.
-    if (upstreamContentType.includes('application/json') && upstreamText) {
+    if (upstreamContentType.includes('application/json') && upstreamText.length > 0) {
       try {
         return NextResponse.json(JSON.parse(upstreamText), { status: upstream.status });
       } catch {
-        // JSON header but invalid JSON payload; fall back to text
         return new NextResponse(upstreamText, {
           status: upstream.status,
           headers: { 'Content-Type': 'text/plain; charset=utf-8' },
@@ -65,8 +77,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Otherwise just forward text
-    return new NextResponse(upstreamText || 'OK', {
+    // Empty or non-JSON response (e.g. 204-style "Kein Inhalt") – return a valid JSON body so client can handle it
+    if (upstreamText.length === 0) {
+      return NextResponse.json(
+        { message: 'Webhook returned no content', ok: true },
+        { status: 200 }
+      );
+    }
+
+    return new NextResponse(upstreamText, {
       status: upstream.status,
       headers: { 'Content-Type': upstreamContentType || 'text/plain; charset=utf-8' },
     });
