@@ -77,6 +77,8 @@ const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirmed-match';
+/** Client and server can wait up to 15 minutes per matching request. */
+const MATCHING_REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
 
 /** Leistung block from kfe_merged (KFE/DF source). */
 export type KfeMergedLeistung = {
@@ -176,7 +178,8 @@ export default function MatchingPage() {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const [statsVisible, setStatsVisible] = useState(true);
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
-  const [sendingRowIndex, setSendingRowIndex] = useState<number | null>(null);
+  /** Row indices still waiting for matching response (concurrent sends). */
+  const [sendingRowIndices, setSendingRowIndices] = useState<Set<number>>(new Set());
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
@@ -653,31 +656,36 @@ export default function MatchingPage() {
       return;
     }
 
+    const itemIndices = new Set(itemRowsWithIndex.map(({ rIdx }) => rIdx));
+    setSendingRowIndices(itemIndices);
     setWebhookStatus('sending');
 
     const fileId = getMatchingSentKey(reviewData);
     const fileName = reviewData.fileName ?? '';
 
     const run = async () => {
-      try {
-        for (let i = 0; i < itemRowsWithIndex.length; i++) {
-          const { rIdx, row } = itemRowsWithIndex[i];
-          setSendingRowIndex(rIdx);
+      const removeSending = (rIdx: number) => {
+        setSendingRowIndices((prev) => {
+          const next = new Set(prev);
+          next.delete(rIdx);
+          return next;
+        });
+      };
 
+      const results = await Promise.allSettled(
+        itemRowsWithIndex.map(async ({ rIdx, row }) => {
           const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
-          const response = await fetch(MATCHING_API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rows: payloadRows }),
-          });
-
-          if (!response.ok) {
-            setWebhookStatus('error');
-            setSendingRowIndex(null);
-            return;
-          }
-
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), MATCHING_REQUEST_TIMEOUT_MS);
           try {
+            const response = await fetch(MATCHING_API_URL, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ rows: payloadRows }),
+              signal: controller.signal,
+            });
+            clearTimeout(timeoutId);
+            if (!response.ok) return;
             const data = await response.json();
             const one = extractMatchResult(data);
             if (one) {
@@ -685,22 +693,16 @@ export default function MatchingPage() {
               setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
             }
           } catch {
-            // non-JSON or invalid; leave row without match result
+            // Timeout, network error, or parse error: leave row without result, continue others
+          } finally {
+            removeSending(rIdx);
           }
-
-          if (i < itemRowsWithIndex.length - 1) {
-            await new Promise((r) => setTimeout(r, 100));
-          }
-        }
-        setSendingRowIndex(null);
-        try {
-          sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
-        } catch {}
-        setWebhookStatus('done');
-      } catch {
-        setWebhookStatus('error');
-        setSendingRowIndex(null);
-      }
+        })
+      );
+      try {
+        sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
+      } catch {}
+      setWebhookStatus('done');
     };
     run();
   }, [reviewData, rerunTrigger]);
@@ -993,7 +995,7 @@ export default function MatchingPage() {
                   {tableData.rows.map((row, rIdx) => {
                     const rowExpanded = isRowExpanded(rIdx);
                     const remarkRow = isRemarkRow(row);
-                    const isThisRowSending = sendingRowIndex === rIdx;
+                    const isThisRowSending = sendingRowIndices.has(rIdx);
                     const hidden = isRowInCollapsedSection(rIdx);
                     const isSectionHeader = remarkRow && sectionHasChildren(rIdx);
                     const isCollapsed = isSectionHeader && collapsedSections.has(rIdx);
