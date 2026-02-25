@@ -188,6 +188,8 @@ export default function MatchingPage() {
   /** Only sync webhookStatus to 'done' once when alreadySent, to avoid effect→setState→re-render loops. */
   const alreadySentDoneSyncedRef = useRef(false);
   const lastSentKeyRef = useRef<string | null>(null);
+  const [rerunDropdownOpen, setRerunDropdownOpen] = useState(false);
+  const rerunDropdownRef = useRef<HTMLDivElement>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
@@ -639,6 +641,18 @@ export default function MatchingPage() {
     return () => clearTimeout(t);
   }, []);
 
+  // Close rerun dropdown when clicking outside
+  useEffect(() => {
+    if (!rerunDropdownOpen) return;
+    const close = (e: MouseEvent) => {
+      if (rerunDropdownRef.current && !rerunDropdownRef.current.contains(e.target as Node)) {
+        setRerunDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [rerunDropdownOpen]);
+
   // Fire webhooks when we have data: full send (all rows) or retry-only-missing
   useEffect(() => {
     if (!reviewData?.tableData?.rows?.length) return;
@@ -786,19 +800,6 @@ export default function MatchingPage() {
   const handleRerunMissingOnly = () => {
     setRetryMissingTrigger((prev) => prev + 1);
   };
-
-  const [rerunDropdownOpen, setRerunDropdownOpen] = useState(false);
-  const rerunDropdownRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!rerunDropdownOpen) return;
-    const close = (e: MouseEvent) => {
-      if (rerunDropdownRef.current && !rerunDropdownRef.current.contains(e.target as Node)) {
-        setRerunDropdownOpen(false);
-      }
-    };
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [rerunDropdownOpen]);
 
   return (
     <div className="p-6 w-full max-w-full">
