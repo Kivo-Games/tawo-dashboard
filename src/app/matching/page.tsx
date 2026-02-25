@@ -695,39 +695,46 @@ export default function MatchingPage() {
 
       let nextIndex = 0;
       const sendOne = async (): Promise<void> => {
-        while (true) {
-          const i = nextIndex++;
-          if (i >= itemRowsToSend.length) return;
-          await new Promise((r) => setTimeout(r, DELAY_BETWEEN_STARTS_MS));
-          const { rIdx, row } = itemRowsToSend[i];
-          addSending(rIdx);
-          const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
-          const body = { rows: payloadRows };
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), MATCHING_REQUEST_TIMEOUT_MS);
-          try {
-            const response = await fetch(MATCHING_API_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-              signal: controller.signal,
-            });
-            clearTimeout(timeoutId);
-            if (!response.ok) return;
-            const contentType = response.headers.get('content-type') || '';
-            const text = await response.text();
-            if (!text || !contentType.includes('application/json')) return;
-            const data = JSON.parse(text);
-            const one = extractMatchResult(data);
-            if (one) {
-              setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one }));
-              setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
+        try {
+          while (true) {
+            const i = nextIndex++;
+            if (i >= itemRowsToSend.length) return;
+            await new Promise((r) => setTimeout(r, DELAY_BETWEEN_STARTS_MS));
+            const { rIdx, row } = itemRowsToSend[i];
+            addSending(rIdx);
+            let timeoutId: ReturnType<typeof setTimeout> | null = null;
+            try {
+              const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
+              const body = { rows: payloadRows };
+              const controller = new AbortController();
+              timeoutId = setTimeout(() => controller.abort(), MATCHING_REQUEST_TIMEOUT_MS);
+              const response = await fetch(MATCHING_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+                signal: controller.signal,
+              });
+              if (timeoutId != null) clearTimeout(timeoutId);
+              timeoutId = null;
+              if (!response.ok) continue;
+              const contentType = response.headers.get('content-type') || '';
+              const text = await response.text();
+              if (!text || !contentType.includes('application/json')) continue;
+              const data = JSON.parse(text);
+              const one = extractMatchResult(data);
+              if (one) {
+                setMatchResultsByRow((prev) => ({ ...prev, [rIdx]: one }));
+                setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
+              }
+            } catch {
+              // Timeout, 524, network error, parse error, or payload build error: leave row without result
+            } finally {
+              if (timeoutId != null) clearTimeout(timeoutId);
+              removeSending(rIdx);
             }
-          } catch {
-            // Timeout, 524, network error, or parse error: leave row without result, continue others
-          } finally {
-            removeSending(rIdx);
           }
+        } catch {
+          // Ensure worker never rejects so Promise.all(workers) always resolves
         }
       };
 
