@@ -1026,49 +1026,112 @@ export default function MatchingPage() {
         {/* Data Table (same structure as Review + group headers; spinner in Technische Einschätzung & KFE/DF columns) */}
         {tableData.headers.length > 0 && tableData.rows.length > 0 && (
           <div className="border border-gray-200 rounded-lg overflow-hidden mb-4">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm font-medium text-gray-700">
-                Konvertierte Daten ({tableData.rows.length} Zeilen)
-              </p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <Link
-                  href="/review"
-                  className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  ← Zurück zur Prüfung
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleCopyTable}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
-                  title="Tabelle in Zwischenablage kopieren (z.B. in Google Sheets einfügen)"
-                >
-                  {tableCopied ? (
-                    <Check className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <Copy className="w-4 h-4" />
-                  )}
-                  {tableCopied ? 'Kopiert' : 'Tabelle kopieren'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportCsv}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
-                  title="Als CSV-Datei herunterladen"
-                >
-                  <Download className="w-4 h-4" />
-                  CSV exportieren
-                </button>
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-400 text-sm font-medium rounded-md cursor-not-allowed bg-gray-50"
-                  title="GAEB-Export (noch nicht verfügbar)"
-                >
-                  <FileText className="w-4 h-4" />
-                  GAEB exportieren
-                </button>
+            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-sm font-medium text-gray-700">
+                  Konvertierte Daten ({tableData.rows.length} Zeilen)
+                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <Link
+                    href="/review"
+                    className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                  >
+                    ← Zurück zur Prüfung
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={handleCopyTable}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
+                    title="Tabelle in Zwischenablage kopieren (z.B. in Google Sheets einfügen)"
+                  >
+                    {tableCopied ? (
+                      <Check className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                    {tableCopied ? 'Kopiert' : 'Tabelle kopieren'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors"
+                    title="Als CSV-Datei herunterladen"
+                  >
+                    <Download className="w-4 h-4" />
+                    CSV exportieren
+                  </button>
+                  <button
+                    type="button"
+                    disabled
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-400 text-sm font-medium rounded-md cursor-not-allowed bg-gray-50"
+                    title="GAEB-Export (noch nicht verfügbar)"
+                  >
+                    <FileText className="w-4 h-4" />
+                    GAEB exportieren
+                  </button>
+                </div>
               </div>
+              {(webhookStatus === 'sending' || webhookStatus === 'done' || webhookStatus === 'error') && (
+                <div
+                  className={
+                    webhookStatus === 'sending'
+                      ? 'rounded-md bg-gray-100 px-3 py-2'
+                      : webhookStatus === 'done'
+                        ? 'rounded-md bg-green-50 px-3 py-2'
+                        : 'rounded-md bg-red-50 px-3 py-2'
+                  }
+                >
+                  {webhookStatus === 'sending' && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                        <span className="flex items-center gap-2 font-medium text-gray-800">
+                          <Loader2 className="w-4 h-4 text-gray-500 animate-spin flex-shrink-0" />
+                          Matching läuft
+                        </span>
+                        <span className="text-gray-600">
+                          {matchingRunStats.completed} / {matchingRunTotal} Zeilen
+                        </span>
+                        <span className="text-gray-500">
+                          {sendingRowIndices.size} in Bearbeitung
+                        </span>
+                        {matchingRunStats.completed > 0 && (
+                          <span className="text-gray-500">
+                            Ø {formatAverageResponseTime(matchingRunStats.totalResponseMs / matchingRunStats.completed)}/Zeile
+                          </span>
+                        )}
+                      </div>
+                      {matchingRunTotal > 0 && (
+                        <div className="h-1.5 w-full max-w-xs rounded-full bg-gray-200 overflow-hidden">
+                          <div
+                            className="h-full bg-gray-600 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${Math.round((matchingRunStats.completed / matchingRunTotal) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {webhookStatus === 'done' && (
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-green-800">
+                      <span className="font-medium">Gesendet.</span>
+                      {matchingRunTotal > 0 && (
+                        <>
+                          <span>{matchingRunTotal} Zeilen</span>
+                          {matchingRunStats.completed > 0 && (
+                            <span className="text-green-700">
+                              Ø {formatAverageResponseTime(matchingRunStats.totalResponseMs / matchingRunStats.completed)}/Zeile
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {webhookStatus === 'error' && (
+                    <span className="text-sm text-red-700">Fehler beim Senden. Bitte erneut versuchen.</span>
+                  )}
+                </div>
+              )}
             </div>
             <div className="overflow-x-auto w-full min-w-0">
               <table className="text-sm border-collapse table-auto" style={{ minWidth: 'max-content' }}>
@@ -1447,72 +1510,6 @@ export default function MatchingPage() {
                       </tr>
                     );
                   })}
-                  {(webhookStatus === 'sending' || webhookStatus === 'done' || webhookStatus === 'error') && (
-                    <tr
-                      className={
-                        webhookStatus === 'sending'
-                          ? 'bg-gray-50 border-t-2 border-gray-200'
-                          : webhookStatus === 'done'
-                            ? 'bg-green-50 border-t border-gray-200'
-                            : 'bg-red-50 border-t border-gray-200'
-                      }
-                    >
-                      <td
-                        colSpan={tableData.headers.length + 1}
-                        className="px-4 py-3 text-sm text-gray-700"
-                      >
-                        {webhookStatus === 'sending' && (
-                          <div className="flex flex-col gap-2">
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                              <span className="flex items-center gap-2 font-medium text-gray-800">
-                                <Loader2 className="w-4 h-4 text-gray-500 animate-spin flex-shrink-0" />
-                                Matching läuft
-                              </span>
-                              <span className="text-gray-600">
-                                {matchingRunStats.completed} / {matchingRunTotal} Zeilen
-                              </span>
-                              <span className="text-gray-500">
-                                {sendingRowIndices.size} in Bearbeitung
-                              </span>
-                              {matchingRunStats.completed > 0 && (
-                                <span className="text-gray-500">
-                                  Ø {formatAverageResponseTime(matchingRunStats.totalResponseMs / matchingRunStats.completed)}/Zeile
-                                </span>
-                              )}
-                            </div>
-                            {matchingRunTotal > 0 && (
-                              <div className="h-1.5 w-full max-w-xs rounded-full bg-gray-200 overflow-hidden">
-                                <div
-                                  className="h-full bg-gray-600 rounded-full transition-all duration-300"
-                                  style={{
-                                    width: `${Math.round((matchingRunStats.completed / matchingRunTotal) * 100)}%`,
-                                  }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {webhookStatus === 'done' && (
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-green-800">
-                            <span className="font-medium">Gesendet.</span>
-                            {matchingRunTotal > 0 && (
-                              <>
-                                <span>{matchingRunTotal} Zeilen</span>
-                                {matchingRunStats.completed > 0 && (
-                                  <span className="text-green-700">
-                                    Ø {formatAverageResponseTime(matchingRunStats.totalResponseMs / matchingRunStats.completed)}/Zeile
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        )}
-                        {webhookStatus === 'error' && (
-                          <span className="text-red-700">Fehler beim Senden. Bitte erneut versuchen.</span>
-                        )}
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
