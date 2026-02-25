@@ -142,13 +142,95 @@ export type MatchResult = {
   kfe_merged?: KfeMergedEntry[];
 };
 
+/** Normalize a raw match (best_match or top_5_matches item) into KfeMergedEntry. */
+function rawMatchToKfeEntry(raw: Record<string, unknown>): KfeMergedEntry {
+  const leistungsId = String(raw.leistungs_id ?? raw.Leistungs_ID ?? '');
+  const score = Number(raw.combined_score ?? raw.similarity ?? 0);
+  const kurz = String(raw.kurzbeschreibung ?? raw.Kurzbeschreibung ?? '');
+  const lang = String(raw.leistungsbeschreibung ?? raw.Leistungsbeschreibung ?? raw.embed_text ?? '');
+  const zeit = String(raw.netto_minuten_per_1unit ?? raw.Netto_Minuten_per_1unit ?? '');
+  const material = String(raw.materialkosten_0_marge ?? raw.Materialkosten ?? '');
+  const kategorie = String(raw.kategorie ?? raw.Kategorie ?? '');
+  const sourceId = String(raw.artikel_id ?? raw.candidate_key ?? raw.source_id ?? leistungsId);
+  return {
+    source_id: sourceId,
+    leistungs_id: leistungsId,
+    combined_score: score,
+    leistung: {
+      Kurzbeschreibung: kurz,
+      Leistungsbeschreibung: lang,
+      Netto_Minuten_per_1unit: zeit,
+      Materialkosten: material,
+      Kategorie: kategorie,
+    },
+  };
+}
+
+/** Build kfe_merged from new webhook format: llm_decision first, then rest of top_5_matches. */
+function buildKfeMergedFromNewFormat(d: Record<string, unknown>): KfeMergedEntry[] {
+  const llmDecision = d.llm_decision as Record<string, unknown> | undefined;
+  const bestMatch = d.best_match as Record<string, unknown> | undefined;
+  const top5 = (d.top_5_matches as Record<string, unknown>[] | undefined) ?? [];
+  const llmLeistungsId = llmDecision ? String(llmDecision.Leistungs_ID ?? '') : '';
+
+  const entries: KfeMergedEntry[] = [];
+  const used = new Set<string>();
+
+  // First: LLM choice (find in best_match or top_5_matches)
+  if (llmLeistungsId) {
+    if (bestMatch && String(bestMatch.leistungs_id ?? '') === llmLeistungsId) {
+      entries.push(rawMatchToKfeEntry(bestMatch));
+      used.add(llmLeistungsId);
+    } else {
+      const inTop5 = top5.find((m) => String(m.leistungs_id ?? '') === llmLeistungsId);
+      if (inTop5) {
+        entries.push(rawMatchToKfeEntry(inTop5));
+        used.add(llmLeistungsId);
+      }
+    }
+  }
+  // If no llm_decision or not found, use best_match as first
+  if (entries.length === 0 && bestMatch) {
+    entries.push(rawMatchToKfeEntry(bestMatch));
+    used.add(String(bestMatch.leistungs_id ?? ''));
+  }
+
+  // Then: rest of top_5_matches in order (skip if already added as first)
+  for (const m of top5) {
+    const lid = String(m.leistungs_id ?? '');
+    if (lid && !used.has(lid)) {
+      entries.push(rawMatchToKfeEntry(m));
+      used.add(lid);
+    }
+  }
+
+  return entries;
+}
+
 /** Extract the single match result from various n8n/API response shapes. */
 function extractMatchResult(data: unknown): MatchResult | null {
   if (!data || typeof data !== 'object') return null;
   const d = data as Record<string, unknown>;
-  // New format: has kfe_merged array
+  // New format: has kfe_merged array (already normalized)
   if (Array.isArray(d.kfe_merged) && d.kfe_merged.length > 0) {
     return d as unknown as MatchResult;
+  }
+  // New webhook format: best_match + top_5_matches + llm_decision → build kfe_merged with LLM first
+  if (
+    (d.match_found != null || d.best_match != null) &&
+    (Array.isArray(d.top_5_matches) || d.llm_decision != null)
+  ) {
+    const kfe_merged = buildKfeMergedFromNewFormat(d);
+    if (kfe_merged.length > 0) {
+      const first = kfe_merged[0];
+      return {
+        matched_leistungs_id: first.leistungs_id,
+        matched_titel: first.leistung?.Kurzbeschreibung ?? '',
+        matched_embed_text: first.leistung?.Leistungsbeschreibung ?? '',
+        matched_source_id: first.source_id,
+        kfe_merged,
+      };
+    }
   }
   // Legacy: direct match object (has match fields at top level)
   if ('matched_titel' in d || 'matched_leistungs_id' in d || 'top_5_matches' in d) {
