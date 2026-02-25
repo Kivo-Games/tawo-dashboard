@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronUp, ChevronRight, Loader2, Copy, Check, FileText, Download } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   LV_HEADER_KEYS,
   COMPACT_COLUMN_KEYS,
@@ -180,6 +180,9 @@ export default function MatchingPage() {
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
   /** Row indices still waiting for matching response (concurrent sends). */
   const [sendingRowIndices, setSendingRowIndices] = useState<Set<number>>(new Set());
+  /** Incremented when user chooses "rerun only missing"; effect runs retry for rows without result. */
+  const [retryMissingTrigger, setRetryMissingTrigger] = useState(0);
+  const lastRetryTriggerRef = useRef(0);
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
   const [collapsedColumnGroups, setCollapsedColumnGroups] = useState<Set<ColumnGroup>>(new Set());
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
@@ -631,39 +634,25 @@ export default function MatchingPage() {
     return () => clearTimeout(t);
   }, []);
 
-  // Fire webhooks when we have data: one row at a time, production only, 0.1s between each request
+  // Fire webhooks when we have data: full send (all rows) or retry-only-missing
   useEffect(() => {
     if (!reviewData?.tableData?.rows?.length) return;
 
     const sentKey = getMatchingSentKey(reviewData);
     const alreadySent = typeof window !== 'undefined' && sessionStorage.getItem(MATCHING_SENT_KEY) === sentKey;
-
-    if (alreadySent) {
-      setWebhookStatus('done');
-      return;
-    }
-
     const rows = reviewData.tableData.rows;
-    const itemRowsWithIndex = rows
+    const allItemRowsWithIndex = rows
       .map((row, rIdx) => ({ rIdx, row }))
       .filter(({ row }) => String(row['type'] ?? '').toUpperCase() !== 'REMARK');
-
-    if (itemRowsWithIndex.length === 0) {
-      setWebhookStatus('done');
-      try {
-        sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
-      } catch {}
-      return;
-    }
-
-    const itemIndices = new Set(itemRowsWithIndex.map(({ rIdx }) => rIdx));
-    setSendingRowIndices(itemIndices);
-    setWebhookStatus('sending');
 
     const fileId = getMatchingSentKey(reviewData);
     const fileName = reviewData.fileName ?? '';
 
-    const run = async () => {
+    const runSend = (itemRowsToSend: { rIdx: number; row: Record<string, string> }[], setSentKeyWhenDone: boolean) => {
+      const itemIndices = new Set(itemRowsToSend.map(({ rIdx }) => rIdx));
+      setSendingRowIndices(itemIndices);
+      setWebhookStatus('sending');
+
       const removeSending = (rIdx: number) => {
         setSendingRowIndices((prev) => {
           const next = new Set(prev);
@@ -672,8 +661,8 @@ export default function MatchingPage() {
         });
       };
 
-      const results = await Promise.allSettled(
-        itemRowsWithIndex.map(async ({ rIdx, row }) => {
+      Promise.allSettled(
+        itemRowsToSend.map(async ({ rIdx, row }) => {
           const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), MATCHING_REQUEST_TIMEOUT_MS);
@@ -698,14 +687,43 @@ export default function MatchingPage() {
             removeSending(rIdx);
           }
         })
-      );
+      ).then(() => {
+        if (setSentKeyWhenDone) {
+          try {
+            sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
+          } catch {}
+        }
+        setWebhookStatus('done');
+      });
+    };
+
+    // Retry only rows that have no match result yet (user chose "rerun only missing")
+    if (alreadySent && retryMissingTrigger > 0 && retryMissingTrigger !== lastRetryTriggerRef.current) {
+      lastRetryTriggerRef.current = retryMissingTrigger;
+      const missing = allItemRowsWithIndex.filter(({ rIdx }) => !matchResultsByRow[rIdx]);
+      if (missing.length === 0) {
+        setWebhookStatus('done');
+        return;
+      }
+      runSend(missing, false);
+      return;
+    }
+
+    if (alreadySent) {
+      setWebhookStatus('done');
+      return;
+    }
+
+    if (allItemRowsWithIndex.length === 0) {
+      setWebhookStatus('done');
       try {
         sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
       } catch {}
-      setWebhookStatus('done');
-    };
-    run();
-  }, [reviewData, rerunTrigger]);
+      return;
+    }
+
+    runSend(allItemRowsWithIndex, true);
+  }, [reviewData, rerunTrigger, retryMissingTrigger]);
 
   if (reviewData === null) {
     return (
@@ -731,7 +749,8 @@ export default function MatchingPage() {
 
   const { tableData, fileName } = reviewData;
 
-  const handleRerunMatches = () => {
+  /** Rerun matching for all rows (clears results and sent key). */
+  const handleRerunAll = () => {
     try {
       sessionStorage.removeItem(MATCHING_SENT_KEY);
       if (reviewData) {
@@ -747,6 +766,24 @@ export default function MatchingPage() {
     setRerunTrigger((prev) => prev + 1);
   };
 
+  /** Rerun matching only for rows that have no result yet (e.g. failed or timed out). */
+  const handleRerunMissingOnly = () => {
+    setRetryMissingTrigger((prev) => prev + 1);
+  };
+
+  const [rerunDropdownOpen, setRerunDropdownOpen] = useState(false);
+  const rerunDropdownRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!rerunDropdownOpen) return;
+    const close = (e: MouseEvent) => {
+      if (rerunDropdownRef.current && !rerunDropdownRef.current.contains(e.target as Node)) {
+        setRerunDropdownOpen(false);
+      }
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [rerunDropdownOpen]);
+
   return (
     <div className="p-6 w-full max-w-full">
       <div className="w-full max-w-full">
@@ -754,14 +791,54 @@ export default function MatchingPage() {
           <h1 className="text-2xl font-semibold text-gray-900">
             {webhookStatus === 'sending' ? 'Matching läuft...' : 'Matching'}
           </h1>
-          <button
-            type="button"
-            onClick={handleRerunMatches}
-            disabled={webhookStatus === 'sending'}
-            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            Matches erneut ausführen
-          </button>
+          <div className="relative inline-block" ref={rerunDropdownRef}>
+            <div className="flex rounded-md shadow-sm">
+              <button
+                type="button"
+                onClick={() => !rerunDropdownOpen && webhookStatus !== 'sending' && setRerunDropdownOpen(true)}
+                disabled={webhookStatus === 'sending'}
+                className="inline-flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-l-md hover:bg-gray-50 hover:border-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Matches erneut ausführen
+              </button>
+              <button
+                type="button"
+                onClick={() => webhookStatus !== 'sending' && setRerunDropdownOpen((o) => !o)}
+                disabled={webhookStatus === 'sending'}
+                className="inline-flex items-center px-2 py-2 text-gray-500 bg-white border border-l-0 border-gray-300 rounded-r-md hover:bg-gray-50 hover:text-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Optionen"
+                aria-expanded={rerunDropdownOpen}
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </div>
+            {rerunDropdownOpen && (
+              <div className="absolute right-0 z-20 mt-1 w-56 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRerunDropdownOpen(false);
+                      handleRerunAll();
+                    }}
+                    className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Alle erneut ausführen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRerunDropdownOpen(false);
+                      handleRerunMissingOnly();
+                    }}
+                    className="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    Nur Zeilen ohne Ergebnis
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Stats section – slowly animates out (slide up + fade) */}
