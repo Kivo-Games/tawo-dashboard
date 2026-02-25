@@ -79,7 +79,7 @@ const MATCHING_API_URL = '/api/matching-webhook';
 const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirmed-match';
 /** Client and server wait up to 25 minutes per matching request (524/timeouts ignored, row stays without result). */
 const MATCHING_REQUEST_TIMEOUT_MS = 25 * 60 * 1000;
-const MATCHING_CONCURRENCY = 1;
+const MATCHING_CONCURRENCY = 15;
 const DELAY_BETWEEN_STARTS_MS = 100;
 
 /** Leistung block from kfe_merged (KFE/DF source). */
