@@ -82,6 +82,12 @@ const MATCHING_REQUEST_TIMEOUT_MS = 25 * 60 * 1000;
 const MATCHING_CONCURRENCY = 5;
 const DELAY_BETWEEN_STARTS_MS = 100;
 
+function formatAverageResponseTime(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  if (ms < 60_000) return `${(ms / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} s`;
+  return `${(ms / 60_000).toLocaleString('de-DE', { maximumFractionDigits: 1 })} min`;
+}
+
 /** Leistung block from kfe_merged (KFE/DF source). */
 export type KfeMergedLeistung = {
   Leistungs_ID?: string;
@@ -182,6 +188,10 @@ export default function MatchingPage() {
   const [webhookStatus, setWebhookStatus] = useState<'idle' | 'sending' | 'done' | 'error'>('idle');
   /** Row indices still waiting for matching response (concurrent sends). */
   const [sendingRowIndices, setSendingRowIndices] = useState<Set<number>>(new Set());
+  /** Current run: total rows to send (0 when idle/done). */
+  const [matchingRunTotal, setMatchingRunTotal] = useState(0);
+  /** Current run: completed count and sum of response times (ms) for average. */
+  const [matchingRunStats, setMatchingRunStats] = useState({ completed: 0, totalResponseMs: 0 });
   /** Incremented when user chooses "rerun only missing"; effect runs retry for rows without result. */
   const [retryMissingTrigger, setRetryMissingTrigger] = useState(0);
   const lastRetryTriggerRef = useRef(0);
@@ -676,6 +686,8 @@ export default function MatchingPage() {
     const runSend = async (itemRowsToSend: { rIdx: number; row: Record<string, string> }[], setSentKeyWhenDone: boolean) => {
       alreadySentDoneSyncedRef.current = false;
       setSendingRowIndices(new Set());
+      setMatchingRunTotal(itemRowsToSend.length);
+      setMatchingRunStats({ completed: 0, totalResponseMs: 0 });
       setWebhookStatus('sending');
 
       const addSending = (rIdx: number) => {
@@ -702,6 +714,7 @@ export default function MatchingPage() {
             await new Promise((r) => setTimeout(r, DELAY_BETWEEN_STARTS_MS));
             const { rIdx, row } = itemRowsToSend[i];
             addSending(rIdx);
+            const requestStartMs = Date.now();
             let timeoutId: ReturnType<typeof setTimeout> | null = null;
             try {
               const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
@@ -730,6 +743,11 @@ export default function MatchingPage() {
               // Timeout, 524, network error, parse error, or payload build error: leave row without result
             } finally {
               if (timeoutId != null) clearTimeout(timeoutId);
+              const durationMs = Date.now() - requestStartMs;
+              setMatchingRunStats((prev) => ({
+                completed: prev.completed + 1,
+                totalResponseMs: prev.totalResponseMs + durationMs,
+              }));
               removeSending(rIdx);
             }
           }
@@ -1339,30 +1357,69 @@ export default function MatchingPage() {
                       </tr>
                     );
                   })}
-                  {webhookStatus === 'sending' && (
-                    <tr className="bg-gray-50 border-t-2 border-gray-200">
+                  {(webhookStatus === 'sending' || webhookStatus === 'done' || webhookStatus === 'error') && (
+                    <tr
+                      className={
+                        webhookStatus === 'sending'
+                          ? 'bg-gray-50 border-t-2 border-gray-200'
+                          : webhookStatus === 'done'
+                            ? 'bg-green-50 border-t border-gray-200'
+                            : 'bg-red-50 border-t border-gray-200'
+                      }
+                    >
                       <td
                         colSpan={tableData.headers.length + 1}
-                        className="px-4 py-4 text-center text-sm text-gray-600"
+                        className="px-4 py-3 text-sm text-gray-700"
                       >
-                        <div className="flex items-center justify-center gap-3">
-                          <Loader2 className="w-5 h-5 text-gray-500 animate-spin flex-shrink-0" />
-                          <span>Daten werden an den Matching-Service gesendet…</span>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                  {webhookStatus === 'done' && (
-                    <tr className="bg-green-50 border-t border-gray-200">
-                      <td colSpan={tableData.headers.length + 1} className="px-4 py-3 text-center text-sm text-green-700">
-                        Gesendet.
-                      </td>
-                    </tr>
-                  )}
-                  {webhookStatus === 'error' && (
-                    <tr className="bg-red-50 border-t border-gray-200">
-                      <td colSpan={tableData.headers.length + 1} className="px-4 py-3 text-center text-sm text-red-700">
-                        Fehler beim Senden. Bitte erneut versuchen.
+                        {webhookStatus === 'sending' && (
+                          <div className="flex flex-col gap-2">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                              <span className="flex items-center gap-2 font-medium text-gray-800">
+                                <Loader2 className="w-4 h-4 text-gray-500 animate-spin flex-shrink-0" />
+                                Matching läuft
+                              </span>
+                              <span className="text-gray-600">
+                                {matchingRunStats.completed} / {matchingRunTotal} Zeilen
+                              </span>
+                              <span className="text-gray-500">
+                                {sendingRowIndices.size} in Bearbeitung
+                              </span>
+                              {matchingRunStats.completed > 0 && (
+                                <span className="text-gray-500">
+                                  Ø {formatAverageResponseTime(matchingRunStats.totalResponseMs / matchingRunStats.completed)}/Zeile
+                                </span>
+                              )}
+                            </div>
+                            {matchingRunTotal > 0 && (
+                              <div className="h-1.5 w-full max-w-xs rounded-full bg-gray-200 overflow-hidden">
+                                <div
+                                  className="h-full bg-gray-600 rounded-full transition-all duration-300"
+                                  style={{
+                                    width: `${Math.round((matchingRunStats.completed / matchingRunTotal) * 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {webhookStatus === 'done' && (
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-green-800">
+                            <span className="font-medium">Gesendet.</span>
+                            {matchingRunTotal > 0 && (
+                              <>
+                                <span>{matchingRunTotal} Zeilen</span>
+                                {matchingRunStats.completed > 0 && (
+                                  <span className="text-green-700">
+                                    Ø {formatAverageResponseTime(matchingRunStats.totalResponseMs / matchingRunStats.completed)}/Zeile
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                        {webhookStatus === 'error' && (
+                          <span className="text-red-700">Fehler beim Senden. Bitte erneut versuchen.</span>
+                        )}
                       </td>
                     </tr>
                   )}
