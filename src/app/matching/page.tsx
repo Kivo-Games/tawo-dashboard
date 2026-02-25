@@ -77,8 +77,10 @@ const COL_MIN_DEFAULT = 56;
 
 const MATCHING_API_URL = '/api/matching-webhook';
 const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirmed-match';
-/** Client and server can wait up to 15 minutes per matching request. */
-const MATCHING_REQUEST_TIMEOUT_MS = 15 * 60 * 1000;
+/** Client and server wait up to 5 minutes per matching request (524/timeouts ignored, row stays without result). */
+const MATCHING_REQUEST_TIMEOUT_MS = 5 * 60 * 1000;
+const MATCHING_CONCURRENCY = 15;
+const DELAY_BETWEEN_STARTS_MS = 100;
 
 /** Leistung block from kfe_merged (KFE/DF source). */
 export type KfeMergedLeistung = {
@@ -685,11 +687,13 @@ export default function MatchingPage() {
         });
       };
 
-      const DELAY_BETWEEN_REQUESTS_MS = 100;
-      const promises: Promise<void>[] = [];
-      for (let i = 0; i < itemRowsToSend.length; i++) {
-        const { rIdx, row } = itemRowsToSend[i];
-        const p = (async () => {
+      let nextIndex = 0;
+      const sendOne = async (): Promise<void> => {
+        while (true) {
+          const i = nextIndex++;
+          if (i >= itemRowsToSend.length) return;
+          await new Promise((r) => setTimeout(r, DELAY_BETWEEN_STARTS_MS));
+          const { rIdx, row } = itemRowsToSend[i];
           const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
           const body = { rows: payloadRows };
           const controller = new AbortController();
@@ -713,17 +717,16 @@ export default function MatchingPage() {
               setSelectedMatchIndexByRow((prev) => ({ ...prev, [rIdx]: 0 }));
             }
           } catch {
-            // Timeout, network error, or parse error: leave row without result, continue others
+            // Timeout, 524, network error, or parse error: leave row without result, continue others
           } finally {
             removeSending(rIdx);
           }
-        })();
-        promises.push(p);
-        if (i < itemRowsToSend.length - 1) {
-          await new Promise((r) => setTimeout(r, DELAY_BETWEEN_REQUESTS_MS));
         }
-      }
-      Promise.allSettled(promises).then(() => {
+      };
+
+      const numWorkers = Math.min(MATCHING_CONCURRENCY, itemRowsToSend.length);
+      const workers = Array.from({ length: numWorkers }, () => sendOne());
+      Promise.all(workers).then(() => {
         if (setSentKeyWhenDone) {
           try {
             sessionStorage.setItem(MATCHING_SENT_KEY, sentKey);
