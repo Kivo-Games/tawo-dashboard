@@ -671,7 +671,7 @@ export default function MatchingPage() {
     const fileId = getMatchingSentKey(reviewData);
     const fileName = reviewData.fileName ?? '';
 
-    const runSend = (itemRowsToSend: { rIdx: number; row: Record<string, string> }[], setSentKeyWhenDone: boolean) => {
+    const runSend = async (itemRowsToSend: { rIdx: number; row: Record<string, string> }[], setSentKeyWhenDone: boolean) => {
       alreadySentDoneSyncedRef.current = false;
       const itemIndices = new Set(itemRowsToSend.map(({ rIdx }) => rIdx));
       setSendingRowIndices(itemIndices);
