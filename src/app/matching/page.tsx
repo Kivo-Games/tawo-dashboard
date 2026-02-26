@@ -56,17 +56,30 @@ function getRemarksForItemRow(
   return remarkRows.map((x) => x.row);
 }
 
-/** Build webhook rows: [ fileInfo, ...remark rows, item row ]. */
+/** Build a plain row object with all header keys so webhook always receives full row data (no missing keys). */
+function rowToPayloadRow(row: Record<string, string>, headers: string[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  headers.forEach((key) => {
+    out[key] = String(row[key] ?? '');
+  });
+  if (typeof row.id !== 'undefined') out.id = String(row.id);
+  return out;
+}
+
+/** Build webhook rows: [ fileInfo, ...remark rows, item row ]. Uses headers so every row has all columns. */
 function buildMatchingPayloadRows(
   rows: Record<string, string>[],
   itemRow: Record<string, string>,
+  headers: string[],
   fileId: string,
   fileName: string,
   isRemarkRow: (row: Record<string, string>) => boolean
 ): (Record<string, string> | { id: string; name: string })[] {
   const fileInfo = { id: fileId, name: fileName };
   const remarks = getRemarksForItemRow(rows, itemRow, isRemarkRow);
-  return [fileInfo, ...remarks, itemRow];
+  const remarkPayloadRows = remarks.map((r) => rowToPayloadRow(r, headers));
+  const itemPayloadRow = rowToPayloadRow(itemRow, headers);
+  return [fileInfo, ...remarkPayloadRows, itemPayloadRow];
 }
 
 const COL_MIN_COMPACT = 36;
@@ -803,7 +816,7 @@ export default function MatchingPage() {
             let succeeded = false;
             let timeoutId: ReturnType<typeof setTimeout> | null = null;
             try {
-              const payloadRows = buildMatchingPayloadRows(rows, row, fileId, fileName, isRemarkRow);
+              const payloadRows = buildMatchingPayloadRows(rows, row, reviewData.tableData.headers, fileId, fileName, isRemarkRow);
               const body = { rows: payloadRows };
               const controller = new AbortController();
               timeoutId = setTimeout(() => controller.abort(), MATCHING_REQUEST_TIMEOUT_MS);

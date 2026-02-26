@@ -104,6 +104,26 @@ function toTableData(data: unknown): { headers: string[]; rows: Record<string, s
     const rows = rawRows.map((r) => normalizeRow(r));
     return { headers, rows, labels };
   }
+  // Nested shapes (e.g. n8n returns { body: { rows: [...] } } or { data: { rows: [...] } })
+  const obj = data as Record<string, unknown>;
+  if (typeof obj === 'object' && obj !== null) {
+    let nestedRows: Record<string, unknown>[] | null = null;
+    if (typeof obj.body === 'object' && obj.body !== null && Array.isArray((obj.body as Record<string, unknown>).rows)) {
+      nestedRows = (obj.body as { rows: Record<string, unknown>[] }).rows;
+    } else if (Array.isArray(obj.body)) {
+      nestedRows = obj.body as Record<string, unknown>[];
+    } else if (typeof obj.data === 'object' && obj.data !== null && Array.isArray((obj.data as Record<string, unknown>).rows)) {
+      nestedRows = (obj.data as { rows: Record<string, unknown>[] }).rows;
+    } else if (Array.isArray(obj.data)) {
+      nestedRows = obj.data as Record<string, unknown>[];
+    }
+    if (nestedRows && nestedRows.length >= 0) {
+      const rows = nestedRows.map((r) =>
+        normalizeRow(typeof r === 'object' && r !== null ? (r as Record<string, unknown>) : null)
+      );
+      return { headers, rows, labels };
+    }
+  }
   return null;
 }
 
