@@ -94,7 +94,7 @@ const CONFIRMED_MATCH_WEBHOOK_URL = 'https://tawo.app.n8n.cloud/webhook/confirme
 const MATCHING_REQUEST_TIMEOUT_MS = 25 * 60 * 1000;
 const MATCHING_CONCURRENCY = 5;
 const DELAY_BETWEEN_STARTS_MS = 100;
-const MATCHING_MAX_RETRIES = 3;
+const MATCHING_MAX_RETRIES = 1;
 
 function formatAverageResponseTime(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`;
